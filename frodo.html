@@ -83,9 +83,10 @@
         }
         .dropdown-row.show { display: block; }
         .dropdown-row .btn-blue {
-            border-radius: 4px; padding: 8px 12px; white-space: nowrap; display: inline-block;
-            box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+            border-radius: 4px; padding: 8px 12px; white-space: nowrap; display: block;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.1); margin-bottom: 6px;
         }
+        .dropdown-row .btn-blue:last-child { margin-bottom: 0; }
         
         /* SETTINGS GRID */
         .settings-block {
@@ -216,6 +217,7 @@
                 <button id="writeBtn" class="btn-green btn-main">Write</button>
                 <button id="writeCaretBtn" class="btn-green btn-caret">▾</button>
                 <div id="resetRow" class="dropdown-row">
+                    <button id="readBtn" class="btn-blue text-right">Read</button>
                     <button id="resetBtn" class="btn-blue text-right">Reset to default</button>
                 </div>
             </div>
@@ -320,6 +322,7 @@
         const writeSplit = document.getElementById('writeSplit');
         const resetRow = document.getElementById('resetRow');
         const resetBtn = document.getElementById('resetBtn');
+        const readBtn = document.getElementById('readBtn');
         
         // Visualizer Elements
         const vizContainer = document.getElementById('vizContainer');
@@ -331,7 +334,8 @@
         const popupVtx2 = document.getElementById('popupVtx2');
 
         // Logic Variables
-        let port, writerStream;
+        let port, writerStream, reader;
+        let isConnected = false;
         let vtx1Freqs = [];
         let vtx2Freqs = [];
         let isPopupOpen = false;
@@ -369,6 +373,7 @@
                 connectBtn.textContent = "Connected";
                 connectBtn.classList.add("connected");
                 connectBtn.disabled = true;
+                isConnected = true;
 
                 readLoop();
                 runStartupSequence();
@@ -376,6 +381,36 @@
                 log(`Error: ${err.message}`);
             }
         });
+
+        // Graceful cleanup and UI reset on disconnect/errors
+        async function cleanupPort() {
+            try { if (reader) { try { await reader.cancel(); } catch(_){} try { reader.releaseLock(); } catch(_){} reader = null; } } catch(_){}
+            try { if (writerStream) { writerStream.releaseLock(); writerStream = null; } } catch(_){}
+            try { if (port) { await port.close(); } } catch(_){}
+        }
+
+        function setDisconnectedUI(msg) {
+            if (msg) log(msg);
+            connectBtn.textContent = 'Connect';
+            connectBtn.classList.remove('connected');
+            connectBtn.disabled = false;
+            isConnected = false;
+        }
+
+        if (navigator.serial) {
+            navigator.serial.addEventListener('disconnect', async (event) => {
+                // If the disconnected port is the one we used, clean up
+                if (!port || (event.port && port !== event.port)) {
+                    log('A serial device disconnected');
+                    return;
+                }
+                await cleanupPort();
+                setDisconnectedUI('Device disconnected');
+            });
+            navigator.serial.addEventListener('connect', () => {
+                log('Serial device connected');
+            });
+        }
 
         // --- 3. WRITE ---
         writeBtn.addEventListener('click', async () => {
@@ -407,23 +442,31 @@
 
         // --- 4. STARTUP SEQUENCE ---
         async function runStartupSequence() {
-            log("--- Reading Settings ---");
+            log("--- Reading Commit ---");
             let helpData = await sendCommandAndWait("help");
             if (!parseCommit(helpData)) {
                 await new Promise(r => setTimeout(r, 400));
                 helpData = await sendCommandAndWait("help");
                 parseCommit(helpData);
             }
-            parseValue(await sendCommandAndWait("set_role"), roleSelect, "Role");
-            parseValue(await sendCommandAndWait("set_sync_rc_channel"), syncAuxSelect, "Sync_AUX");
-            parseValue(await sendCommandAndWait("set_stop_rc_channel"), stopAuxSelect, "Stop_AUX");
-            parseValue(await sendCommandAndWait("set_sw_latency"), swLatencyInput, "Latency");
-            parseValue(await sendCommandAndWait("set_tx_time"), txTimeInput, "TX Time");
-            parseValue(await sendCommandAndWait("set_guard_time"), guardTimeInput, "Guard Time");
-            parseVtxList(await sendCommandAndWait("set_vtx1_freq"), 1);
-            parseVtxList(await sendCommandAndWait("set_vtx2_freq"), 2);
-            log("--- Done ---");
-            drawViz(); 
+            log("Tip: Use Read to load settings");
+        }
+
+        async function readAllSettings() {
+            if (!port || !writerStream) return alert("Not connected!");
+            log("--- Reading Settings ---");
+            try {
+                parseValue(await sendCommandAndWait("set_role"), roleSelect, "Role");
+                parseValue(await sendCommandAndWait("set_sync_rc_channel"), syncAuxSelect, "Sync_AUX");
+                parseValue(await sendCommandAndWait("set_stop_rc_channel"), stopAuxSelect, "Stop_AUX");
+                parseValue(await sendCommandAndWait("set_sw_latency"), swLatencyInput, "Latency");
+                parseValue(await sendCommandAndWait("set_tx_time"), txTimeInput, "TX Time");
+                parseValue(await sendCommandAndWait("set_guard_time"), guardTimeInput, "Guard Time");
+                parseVtxList(await sendCommandAndWait("set_vtx1_freq"), 1);
+                parseVtxList(await sendCommandAndWait("set_vtx2_freq"), 2);
+                log("--- Done ---");
+                drawViz();
+            } catch (e) { log(`Read Error: ${e}`); }
         }
 
         // --- 5. PARSERS & UI UPDATE ---
@@ -527,7 +570,7 @@
             await writerStream.write(encoder.encode("\r"));
         }
         async function readLoop() {
-            const reader = port.readable.getReader();
+            reader = port.readable.getReader();
             const decoder = new TextDecoder();
             try {
                 while (true) {
@@ -535,7 +578,13 @@
                     if (done) break;
                     if (value) currentResponseBuffer += decoder.decode(value, { stream: true });
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error(e);
+                await cleanupPort();
+                setDisconnectedUI('Serial read stopped');
+            } finally {
+                try { reader.releaseLock(); } catch(_){}
+            }
         }
         function log(msg) {
             const line = document.createElement('div');
@@ -701,7 +750,16 @@
         
         writeCaretBtn.addEventListener('click', (e) => { e.stopPropagation(); resetRow.classList.toggle('show'); });
         document.addEventListener('click', () => resetRow.classList.remove('show'));
-        resetBtn.addEventListener('click', () => log("Reset not implemented"));
+        readBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            resetRow.classList.remove('show');
+            await readAllSettings();
+        });
+        resetBtn.addEventListener('click', (e) => { 
+            e.stopPropagation();
+            resetRow.classList.remove('show'); 
+            log("Reset not implemented"); 
+        });
 
     </script>
 </body>

@@ -1,10 +1,10 @@
-const CACHE_NAME = 'frodo-v1.1';
+const CACHE_NAME = 'frodo-v1.2';
 const ASSETS_TO_CACHE = [
   './',
   './frodo.html',
   './manifest.json',
-  './icon-192.png',
-  './icon-512.png'
+  './frodo-192.png',
+  './frodo-512.png'
 ];
 
 // 1. Install Event: Cache files

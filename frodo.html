@@ -209,6 +209,7 @@
                 </select>
             </div>
             <div class="commit-hash" id="commitHash">Commit: ---</div>
+            <button id="readBtn" class="btn-blue">Read</button>
         </div>
 
         <div class="header-group header-right">
@@ -217,7 +218,6 @@
                 <button id="writeBtn" class="btn-green btn-main">Write</button>
                 <button id="writeCaretBtn" class="btn-green btn-caret">▾</button>
                 <div id="resetRow" class="dropdown-row">
-                    <button id="readBtn" class="btn-blue text-right">Read</button>
                     <button id="resetBtn" class="btn-blue text-right">Reset to default</button>
                 </div>
             </div>
@@ -750,9 +750,7 @@
         
         writeCaretBtn.addEventListener('click', (e) => { e.stopPropagation(); resetRow.classList.toggle('show'); });
         document.addEventListener('click', () => resetRow.classList.remove('show'));
-        readBtn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            resetRow.classList.remove('show');
+        readBtn.addEventListener('click', async () => {
             await readAllSettings();
         });
         resetBtn.addEventListener('click', (e) => { 

@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frodo Configurator</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#007bff">
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('Service Worker Registered (Offline Capable)'))
+                .catch((error) => console.log('SW Registration Failed:', error));
+        }
+    </script>
+    <style>
+        :root {
+            --bg-color: #f4f4f9;
+            --panel-bg: #ffffff;
+            --border-color: #ccc;
+            --highlight: #007bff;
+            --text-color: #333;
+            --vtx1-color: #007bff; /* Blue */
+            --vtx2-color: #28a745; /* Green */
+            --error-color: #dc3545;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background: var(--bg-color); 
+            color: var(--text-color); 
+            margin: 0 auto; 
+            padding: 20px; 
+            max-width: 900px; 
+        }
+        
+        /* HEADER */
+        .header {
+            display: flex; flex-direction: row; justify-content: space-between; align-items: center;
+            gap: 15px; background: var(--panel-bg); padding: 10px 15px; 
+            border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px;
+            flex-wrap: nowrap;
+        }
+        
+        .header-group { display: flex; align-items: center; gap: 10px; }
+        
+        label { font-weight: 600; font-size: 14px; margin-right: 5px; white-space: nowrap; }
+        
+        .commit-hash {
+            font-family: monospace; background: #eee; padding: 6px 8px; 
+            border-radius: 4px; border: 1px solid #ddd; color: #555; font-size: 13px;
+        }
+
+        /* INPUTS & BUTTONS */
+        select, input[type="text"], input[type="number"] {
+            padding: 6px 8px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 14px;
+        }
+        
+        button {
+            padding: 8px 16px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; transition: 0.2s;
+            font-size: 14px; white-space: nowrap;
+        }
+        #connectBtn { background-color: var(--highlight); color: white; }
+        #connectBtn.connected { background-color: #28a745; }
+
+        .btn-green { background-color: #28a745; color: #fff; }
+        .btn-blue { background-color: var(--highlight); color: #fff; }
+        .text-right { text-align: right; }
+
+        /* Split Button */
+        .split { position: relative; display: inline-flex; --caret-w: 36px; }
+        .btn-main { border-radius: 4px 0 0 4px; }
+        .btn-caret {
+            border-radius: 0 4px 4px 0; padding: 8px 10px; width: var(--caret-w);
+            display: flex; align-items: center; justify-content: center;
+            border-left: 1px solid rgba(255,255,255,0.6);
+        }
+        .dropdown-row {
+            position: absolute; top: calc(100% + 6px); left: 0;
+            min-width: calc(100% - var(--caret-w)); width: max-content;
+            display: none; z-index: 20;
+        }
+        .dropdown-row.show { display: block; }
+        .dropdown-row .btn-blue {
+            border-radius: 4px; padding: 8px 12px; white-space: nowrap; display: inline-block;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+        }
+        
+        /* SETTINGS GRID */
+        .settings-block {
+            border: 2px solid var(--border-color); background: var(--panel-bg);
+            padding: 25px 20px 20px 20px; border-radius: 5px; margin-bottom: 20px; position: relative;
+        }
+        .settings-block h3 {
+            position: absolute; top: -12px; left: 15px; background: var(--panel-bg);
+            padding: 0 10px; margin: 0; color: #555; font-size: 16px;
+        }
+
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+        @media (max-width: 600px) {
+            .settings-grid { grid-template-columns: 1fr; gap: 10px; }
+            .header { overflow-x: auto; }
+        }
+        
+        /* FORM ROWS */
+        .form-row { 
+            display: flex; 
+            flex-direction: row; 
+            align-items: center; 
+            margin-bottom: 12px; 
+        }
+        .form-row label { 
+            width: 120px; 
+            margin-bottom: 0; 
+            flex-shrink: 0; 
+            font-size: 13px; color: #666; 
+        }
+        .form-row input, .form-row select { 
+            flex-grow: 1; 
+            width: auto;
+        }
+
+        /* FREQ BLOCK */
+        .freq-block { padding: 10px 0; position: relative; }
+        .freq-block h3 { margin: 0 0 15px 0; color: #555; font-size: 16px; border-bottom: 1px solid #eee; display: inline-block;}
+        .range-inputs { display: flex; align-items: center; gap: 10px; flex-grow: 1; }
+        .range-inputs input { width: 80px; text-align: center; }
+
+        /* VISUALIZER CANVAS */
+        .viz-container {
+            position: relative; width: 95%; margin: 15px auto 25px auto; 
+            height: 70px; background: #fafafa; border: 1px solid #ddd; border-radius: 4px; cursor: crosshair;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* POPUP */
+        .freq-popup {
+            position: absolute; background: white; border: 1px solid #999; border-radius: 4px;
+            padding: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            z-index: 100; display: none; transform: translate(-50%, -100%); margin-top: -10px;
+            text-align: center; min-width: 120px;
+        }
+        .freq-popup::after { 
+            content: ""; position: absolute; top: 100%; left: 50%; margin-left: -6px;
+            border-width: 6px; border-style: solid; border-color: white transparent transparent transparent;
+        }
+        .freq-popup::before { 
+            content: ""; position: absolute; top: 100%; left: 50%; margin-left: -7px;
+            border-width: 7px; border-style: solid; border-color: #999 transparent transparent transparent; z-index: -1;
+        }
+        .freq-label { font-weight: bold; margin-bottom: 5px; font-size: 14px; display: block; }
+        .popup-btns { display: flex; gap: 5px; justify-content: center; }
+        .btn-mini { padding: 4px 8px; font-size: 11px; border-radius: 3px; border: none; cursor: pointer; color: white;}
+        .btn-vtx1 { background-color: var(--vtx1-color); opacity: 0.5; }
+        .btn-vtx1.active { opacity: 1; border: 2px solid #004085; }
+        .btn-vtx2 { background-color: var(--vtx2-color); opacity: 0.5; }
+        .btn-vtx2.active { opacity: 1; border: 2px solid #1e7e34; }
+
+        /* VTX RICH INPUT STYLES (FIXED) */
+        .vtx-wrapper { position: relative; flex-grow: 1; display: flex; }
+        
+        .vtx-input { 
+            display: none; width: 100%; 
+            /* Match styles of vtx-display */
+            box-sizing: border-box;
+            padding: 6px 8px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 4px; 
+            font-size: 14px; 
+            margin: 0;
+            height: 35px; /* Fixed height to match default div */
+        } 
+        .vtx-input.active { display: block; }
+        
+        .vtx-display {
+            width: 100%; box-sizing: border-box;
+            padding: 6px 8px; border: 1px solid var(--border-color); border-radius: 4px; 
+            font-size: 14px; background: #fff; min-height: 35px; 
+            display: flex; flex-wrap: wrap; gap: 5px; align-items: center; cursor: text;
+        }
+        .vtx-display.hidden { display: none; }
+        
+        .freq-tag { color: #333; }
+        .freq-tag.out-range { 
+            color: var(--error-color); 
+            text-decoration: underline; 
+            text-decoration-thickness: 2px;
+            font-weight: bold;
+        }
+        .freq-tag.placeholder { color: #aaa; font-style: italic; }
+
+        /* LOG WINDOW */
+        #debugLog {
+            margin-top: 20px; font-family: monospace; font-size: 11px; color: #555;
+            height: 100px; overflow-y: scroll; border: 1px solid #ccc; background: #fff; padding: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="header-group header-left">
+            <div style="display:flex; align-items:center;">
+                <label style="width: auto;">Role:</label>
+                <select id="roleSelect">
+                    <option value="1">Air unit (1)</option>
+                    <option value="0">Ground unit (0)</option>
+                </select>
+            </div>
+            <div class="commit-hash" id="commitHash">Commit: ---</div>
+        </div>
+
+        <div class="header-group header-right">
+            <button id="connectBtn">Connect</button>
+            <div class="split" id="writeSplit">
+                <button id="writeBtn" class="btn-green btn-main">Write</button>
+                <button id="writeCaretBtn" class="btn-green btn-caret">▾</button>
+                <div id="resetRow" class="dropdown-row">
+                    <button id="resetBtn" class="btn-blue text-right">Reset to default</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-block">
+        <h3>Frodo settings</h3>
+        <div class="settings-grid">
+            <div class="col-aux">
+                <div class="form-row">
+                    <label>Sync_AUX:</label>
+                    <select id="syncAuxSelect"></select>
+                </div>
+                <div class="form-row">
+                    <label>Start/Stop AUX:</label>
+                    <select id="stopAuxSelect"></select>
+                </div>
+            </div>
+            <div class="col-time">
+                <div class="form-row">
+                    <label>Switch_latency:</label>
+                    <input type="text" id="swLatencyInput" placeholder="...">
+                </div>
+                <div class="form-row">
+                    <label>Time on freq:</label>
+                    <input type="text" id="txTimeInput" placeholder="...">
+                </div>
+                <div class="form-row">
+                    <label>Additional ms:</label>
+                    <input type="text" id="guardTimeInput" placeholder="...">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="freq-block">
+        <h3>Freq settings</h3>
+        
+        <div class="form-row" style="max-width: 400px;">
+            <label>VRX range:</label>
+            <div class="range-inputs">
+                <input type="number" id="vrxMin" value="4200">
+                <span>-</span>
+                <input type="number" id="vrxMax" value="4900">
+            </div>
+        </div>
+
+        <div class="viz-container" id="vizContainer">
+            <canvas id="freqCanvas"></canvas>
+            <div class="freq-popup" id="freqPopup">
+                <span class="freq-label" id="popupLabel">0000</span>
+                <div class="popup-btns">
+                    <button class="btn-mini btn-vtx1" id="popupVtx1">VTX1</button>
+                    <button class="btn-mini btn-vtx2" id="popupVtx2">VTX2</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <label>VTX1:</label>
+            <div class="vtx-wrapper">
+                <div class="vtx-display" id="vtx1Display"></div>
+                <input type="text" class="vtx-input" id="vtx1Input" placeholder="4200 4250...">
+            </div>
+        </div>
+        <div class="form-row">
+            <label>VTX2:</label>
+            <div class="vtx-wrapper">
+                <div class="vtx-display" id="vtx2Display"></div>
+                <input type="text" class="vtx-input" id="vtx2Input" placeholder="4200 4250...">
+            </div>
+        </div>
+    </div>
+
+    <div id="debugLog">Ready. Connect OTG adapter first!</div>
+
+    <script>
+        // DOM Elements
+        const connectBtn = document.getElementById('connectBtn');
+        const commitHashLabel = document.getElementById('commitHash');
+        const debugLog = document.getElementById('debugLog');
+        const roleSelect = document.getElementById('roleSelect');
+        const syncAuxSelect = document.getElementById('syncAuxSelect');
+        const stopAuxSelect = document.getElementById('stopAuxSelect');
+        const swLatencyInput = document.getElementById('swLatencyInput');
+        const txTimeInput = document.getElementById('txTimeInput');
+        const guardTimeInput = document.getElementById('guardTimeInput');
+        
+        const vrxMinInput = document.getElementById('vrxMin');
+        const vrxMaxInput = document.getElementById('vrxMax');
+        
+        // VTX Rich Inputs
+        const vtx1Input = document.getElementById('vtx1Input');
+        const vtx1Display = document.getElementById('vtx1Display');
+        const vtx2Input = document.getElementById('vtx2Input');
+        const vtx2Display = document.getElementById('vtx2Display');
+
+        // Split button elements
+        const writeBtn = document.getElementById('writeBtn');
+        const writeCaretBtn = document.getElementById('writeCaretBtn');
+        const writeSplit = document.getElementById('writeSplit');
+        const resetRow = document.getElementById('resetRow');
+        const resetBtn = document.getElementById('resetBtn');
+        
+        // Visualizer Elements
+        const vizContainer = document.getElementById('vizContainer');
+        const canvas = document.getElementById('freqCanvas');
+        const ctx = canvas.getContext('2d');
+        const freqPopup = document.getElementById('freqPopup');
+        const popupLabel = document.getElementById('popupLabel');
+        const popupVtx1 = document.getElementById('popupVtx1');
+        const popupVtx2 = document.getElementById('popupVtx2');
+
+        // Logic Variables
+        let port, writerStream;
+        let vtx1Freqs = [];
+        let vtx2Freqs = [];
+        let isPopupOpen = false;
+        let selectedFreq = 0;
+
+        // Init
+        initAuxDropdowns();
+        resizeCanvas();
+        updateVtxDisplay(1);
+        updateVtxDisplay(2);
+        window.addEventListener('resize', resizeCanvas);
+        requestAnimationFrame(drawViz); 
+
+        // --- 1. POPULATE AUX ---
+        function initAuxDropdowns() {
+            const auxOptions = [];
+            for (let i = 4; i <= 15; i++) auxOptions.push(`<option value="${i}">AUX${i}</option>`);
+            syncAuxSelect.innerHTML = auxOptions.join('');
+            stopAuxSelect.innerHTML = auxOptions.join('');
+        }
+
+        // --- 2. CONNECT ---
+        connectBtn.addEventListener('click', async () => {
+            if (!navigator.serial) return alert("Web Serial API not supported.");
+            try {
+                port = await navigator.serial.requestPort({ 
+                    filters: [
+                        { usbVendorId: 0x0483 }, { usbVendorId: 0x10C4 }, 
+                        { usbVendorId: 0x0403 }, { usbVendorId: 0x1A86 }, { usbVendorId: 0x2341 }
+                    ] 
+                });
+                await port.open({ baudRate: 9600 });
+                await port.setSignals({ dataTerminalReady: true, requestToSend: true });
+                writerStream = port.writable.getWriter();
+                
+                connectBtn.textContent = "Connected";
+                connectBtn.classList.add("connected");
+                connectBtn.disabled = true;
+
+                readLoop();
+                runStartupSequence();
+            } catch (err) {
+                log(`Error: ${err.message}`);
+            }
+        });
+
+        // --- 3. WRITE ---
+        writeBtn.addEventListener('click', async () => {
+            if (!port || !writerStream) return alert("Not connected!");
+            writeBtn.disabled = true; document.body.style.cursor = 'wait';
+            
+            try {
+                // Settings
+                await sendCommandAndWait(`set_role ${roleSelect.value}`);
+                await sendCommandAndWait(`set_sync_rc_channel ${syncAuxSelect.value}`);
+                await sendCommandAndWait(`set_stop_rc_channel ${stopAuxSelect.value}`);
+                if(swLatencyInput.value) await sendCommandAndWait(`set_sw_latency ${swLatencyInput.value}`);
+                if(txTimeInput.value) await sendCommandAndWait(`set_tx_time ${txTimeInput.value}`);
+                if(guardTimeInput.value) await sendCommandAndWait(`set_guard_time ${guardTimeInput.value}`);
+                
+                // FILTER VTX LISTS (Don't send invalid freqs)
+                const min = parseInt(vrxMinInput.value) || 0;
+                const max = parseInt(vrxMaxInput.value) || 9999;
+                
+                const validVtx1 = vtx1Freqs.filter(f => f >= min && f <= max);
+                const validVtx2 = vtx2Freqs.filter(f => f >= min && f <= max);
+
+                if(validVtx1.length > 0) await sendCommandAndWait(`set_vtx1_freq ${validVtx1.join(' ')}`);
+                if(validVtx2.length > 0) await sendCommandAndWait(`set_vtx2_freq ${validVtx2.join(' ')}`);
+                
+                await sendCommandAndWait("save");
+                alert("Settings saved!");
+            } catch (e) { log(`Write Error: ${e}`); }
+            finally { writeBtn.disabled = false; document.body.style.cursor = 'default'; }
+        });
+
+        // --- 4. STARTUP SEQUENCE ---
+        async function runStartupSequence() {
+            log("--- Reading Settings ---");
+            let helpData = await sendCommandAndWait("help");
+            if (!parseCommit(helpData)) {
+                await new Promise(r => setTimeout(r, 400));
+                helpData = await sendCommandAndWait("help");
+                parseCommit(helpData);
+            }
+            parseValue(await sendCommandAndWait("set_role"), roleSelect, "Role");
+            parseValue(await sendCommandAndWait("set_sync_rc_channel"), syncAuxSelect, "Sync_AUX");
+            parseValue(await sendCommandAndWait("set_stop_rc_channel"), stopAuxSelect, "Stop_AUX");
+            parseValue(await sendCommandAndWait("set_sw_latency"), swLatencyInput, "Latency");
+            parseValue(await sendCommandAndWait("set_tx_time"), txTimeInput, "TX Time");
+            parseValue(await sendCommandAndWait("set_guard_time"), guardTimeInput, "Guard Time");
+            parseVtxList(await sendCommandAndWait("set_vtx1_freq"), 1);
+            parseVtxList(await sendCommandAndWait("set_vtx2_freq"), 2);
+            log("--- Done ---");
+            drawViz(); 
+        }
+
+        // --- 5. PARSERS & UI UPDATE ---
+        function parseCommit(text) {
+            const match = text.match(/Commit\s+([0-9a-fA-F]+)/);
+            if (match && match[1]) {
+                commitHashLabel.textContent = `Commit: ${match[1].substring(0, 7)}`;
+                return true;
+            } return false;
+        }
+
+        function parseValue(text, element, label) {
+            const matches = text.match(/(\d+)/g);
+            if (matches && matches.length > 0) {
+                element.value = matches[matches.length - 1];
+                log(`Parsed ${label}: ${element.value}`);
+            }
+        }
+
+        function parseVtxList(text, vtxNum) {
+            const match = text.match(/frequencies \d+;\s*([\d\s]+)/);
+            if (match && match[1]) {
+                const list = match[1].trim().split(/\s+/).map(Number);
+                if (vtxNum === 1) { vtx1Freqs = list; } 
+                else { vtx2Freqs = list; }
+                updateVtxDisplay(vtxNum);
+                log(`Parsed VTX${vtxNum} List: [${list.length} items]`);
+            }
+        }
+
+        // --- 6. RICH VTX DISPLAY LOGIC ---
+        function updateVtxDisplay(vtxNum) {
+            const list = (vtxNum === 1) ? vtx1Freqs : vtx2Freqs;
+            const display = (vtxNum === 1) ? vtx1Display : vtx2Display;
+            const input = (vtxNum === 1) ? vtx1Input : vtx2Input;
+            const min = parseInt(vrxMinInput.value) || 0;
+            const max = parseInt(vrxMaxInput.value) || 9999;
+
+            input.value = list.join(' ');
+            display.innerHTML = '';
+            if(list.length === 0) {
+                display.innerHTML = '<span class="freq-tag placeholder">Empty... click to edit</span>';
+            } else {
+                list.forEach(f => {
+                    const span = document.createElement('span');
+                    span.textContent = f;
+                    span.className = 'freq-tag';
+                    if (f < min || f > max) {
+                        span.classList.add('out-range');
+                        span.title = "Out of VRX Range";
+                    }
+                    display.appendChild(span);
+                });
+            }
+        }
+
+        function setupVtxSwap(display, input, vtxNum) {
+            display.addEventListener('click', () => {
+                display.classList.add('hidden');
+                input.classList.add('active');
+                input.focus();
+            });
+
+            input.addEventListener('blur', () => {
+                const raw = input.value.trim();
+                const newList = raw ? raw.split(/\s+/).map(Number).filter(n => !isNaN(n)) : [];
+                if(vtxNum === 1) vtx1Freqs = newList;
+                else vtx2Freqs = newList;
+                updateVtxDisplay(vtxNum);
+                display.classList.remove('hidden');
+                input.classList.remove('active');
+                drawViz();
+            });
+        }
+        setupVtxSwap(vtx1Display, vtx1Input, 1);
+        setupVtxSwap(vtx2Display, vtx2Input, 2);
+
+        function checkRanges() {
+            updateVtxDisplay(1);
+            updateVtxDisplay(2);
+            drawViz();
+        }
+        vrxMinInput.addEventListener('input', checkRanges);
+        vrxMaxInput.addEventListener('input', checkRanges);
+
+
+        // --- 7. COMMS (Faster Timings) ---
+        let currentResponseBuffer = "";
+        async function sendCommandAndWait(cmd) {
+            currentResponseBuffer = ""; 
+            await sendSlow(cmd);
+            await new Promise(r => setTimeout(r, 300)); // Lowered from 800
+            return currentResponseBuffer;
+        }
+        async function sendSlow(cmd) {
+            log(`> Sending: ${cmd}`);
+            const encoder = new TextEncoder();
+            for (let i = 0; i < cmd.length; i++) {
+                await writerStream.write(encoder.encode(cmd[i]));
+                await new Promise(r => setTimeout(r, 10)); // Lowered from 15
+            }
+            await writerStream.write(encoder.encode("\r"));
+        }
+        async function readLoop() {
+            const reader = port.readable.getReader();
+            const decoder = new TextDecoder();
+            try {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    if (value) currentResponseBuffer += decoder.decode(value, { stream: true });
+                }
+            } catch (e) { console.error(e); }
+        }
+        function log(msg) {
+            const line = document.createElement('div');
+            line.textContent = msg;
+            debugLog.appendChild(line);
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+
+        // --- 8. VISUALIZER & POPUP ---
+        function resizeCanvas() {
+            canvas.width = vizContainer.offsetWidth;
+            canvas.height = vizContainer.offsetHeight;
+            drawViz();
+        }
+        function drawViz() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const min = parseInt(vrxMinInput.value) || 4200;
+            const max = parseInt(vrxMaxInput.value) || 4900;
+            const range = max - min;
+            const w = canvas.width, h = canvas.height;
+            const margin = 10, drawW = w - (margin * 2);
+
+            ctx.strokeStyle = '#ddd'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(margin, h/2); ctx.lineTo(w - margin, h/2); ctx.stroke();
+
+            ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--vtx1-color').trim();
+            vtx1Freqs.forEach(f => {
+                if(f < min || f > max) return;
+                const x = margin + ((f - min) / range * drawW);
+                ctx.beginPath(); ctx.moveTo(x, h/2 - 5); ctx.lineTo(x - 4, h/2 - 15); ctx.lineTo(x + 4, h/2 - 15); ctx.fill();
+            });
+            ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--vtx2-color').trim();
+            vtx2Freqs.forEach(f => {
+                if(f < min || f > max) return;
+                const x = margin + ((f - min) / range * drawW);
+                ctx.beginPath(); ctx.moveTo(x, h/2 + 5); ctx.lineTo(x - 4, h/2 + 15); ctx.lineTo(x + 4, h/2 + 15); ctx.fill();
+            });
+        }
+        function getFreqFromX(x) {
+            const min = parseInt(vrxMinInput.value) || 4200;
+            const max = parseInt(vrxMaxInput.value) || 4900;
+            const drawW = canvas.width - 20;
+            let pct = (x - 10) / drawW;
+            return Math.round(min + (Math.max(0, Math.min(1, pct)) * (max - min)));
+        }
+
+        canvas.addEventListener('mousemove', (e) => {
+            if(isPopupOpen) return;
+            const rect = canvas.getBoundingClientRect();
+            const freq = getFreqFromX(e.clientX - rect.left);
+            freqPopup.style.display = 'block';
+            freqPopup.style.left = (e.clientX - rect.left) + 'px';
+            freqPopup.style.top = '10px'; 
+            popupLabel.textContent = freq;
+            popupVtx1.style.display = 'none'; popupVtx2.style.display = 'none';
+        });
+        canvas.addEventListener('mouseleave', () => { if(!isPopupOpen) freqPopup.style.display = 'none'; });
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            selectedFreq = getFreqFromX(e.clientX - rect.left);
+            isPopupOpen = true;
+            freqPopup.style.display = 'block';
+            freqPopup.style.left = (e.clientX - rect.left) + 'px';
+            freqPopup.style.top = '0px'; 
+            popupLabel.textContent = selectedFreq;
+            popupVtx1.style.display = 'inline-block'; popupVtx2.style.display = 'inline-block';
+            if(vtx1Freqs.includes(selectedFreq)) popupVtx1.classList.add('active'); else popupVtx1.classList.remove('active');
+            if(vtx2Freqs.includes(selectedFreq)) popupVtx2.classList.add('active'); else popupVtx2.classList.remove('active');
+        });
+        document.addEventListener('click', (e) => {
+            if(e.target !== canvas && !freqPopup.contains(e.target)) { isPopupOpen = false; freqPopup.style.display = 'none'; }
+        });
+        
+        function toggleFreq(vtxNum) {
+            let list = (vtxNum === 1) ? vtx1Freqs : vtx2Freqs;
+            const idx = list.indexOf(selectedFreq);
+            if(idx > -1) list.splice(idx, 1); else list.push(selectedFreq);
+            updateVtxDisplay(vtxNum);
+            if(vtxNum===1) popupVtx1.classList.toggle('active'); else popupVtx2.classList.toggle('active');
+            drawViz();
+        }
+        popupVtx1.addEventListener('click', () => toggleFreq(1));
+        popupVtx2.addEventListener('click', () => toggleFreq(2));
+        
+        writeCaretBtn.addEventListener('click', (e) => { e.stopPropagation(); resetRow.classList.toggle('show'); });
+        document.addEventListener('click', () => resetRow.classList.remove('show'));
+        resetBtn.addEventListener('click', () => log("Reset not implemented"));
+
+    </script>
+</body>
+</html>

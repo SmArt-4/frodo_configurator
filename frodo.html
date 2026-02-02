@@ -129,8 +129,14 @@
 
         /* VISUALIZER CANVAS */
         .viz-container {
-            position: relative; width: 95%; margin: 15px auto 25px auto; 
-            height: 70px; background: #fafafa; border: 1px solid #ddd; border-radius: 4px; cursor: crosshair;
+            position: relative; 
+            width: 95%; 
+            margin: 15px auto 25px auto; 
+            height: 70px; /* Taller to fit text below */
+            background: transparent; /* No background here, we draw it in canvas */
+            border: none; /* Remove HTML border */
+            border-radius: 0; 
+            cursor: crosshair;
         }
         canvas { display: block; width: 100%; height: 100%; }
 
@@ -157,19 +163,14 @@
         .btn-vtx2 { background-color: var(--vtx2-color); opacity: 0.5; }
         .btn-vtx2.active { opacity: 1; border: 2px solid #1e7e34; }
 
-        /* VTX RICH INPUT STYLES (FIXED) */
+        /* VTX RICH INPUT STYLES */
         .vtx-wrapper { position: relative; flex-grow: 1; display: flex; }
         
         .vtx-input { 
             display: none; width: 100%; 
-            /* Match styles of vtx-display */
-            box-sizing: border-box;
-            padding: 6px 8px; 
-            border: 1px solid var(--border-color); 
-            border-radius: 4px; 
-            font-size: 14px; 
-            margin: 0;
-            height: 35px; /* Fixed height to match default div */
+            box-sizing: border-box; padding: 6px 8px; 
+            border: 1px solid var(--border-color); border-radius: 4px; 
+            font-size: 14px; margin: 0; height: 35px;
         } 
         .vtx-input.active { display: block; }
         
@@ -184,9 +185,7 @@
         .freq-tag { color: #333; }
         .freq-tag.out-range { 
             color: var(--error-color); 
-            text-decoration: underline; 
-            text-decoration-thickness: 2px;
-            font-weight: bold;
+            text-decoration: underline; text-decoration-thickness: 2px; font-weight: bold;
         }
         .freq-tag.placeholder { color: #aaa; font-style: italic; }
 
@@ -344,7 +343,6 @@
         updateVtxDisplay(1);
         updateVtxDisplay(2);
         window.addEventListener('resize', resizeCanvas);
-        requestAnimationFrame(drawViz); 
 
         // --- 1. POPULATE AUX ---
         function initAuxDropdowns() {
@@ -385,7 +383,6 @@
             writeBtn.disabled = true; document.body.style.cursor = 'wait';
             
             try {
-                // Settings
                 await sendCommandAndWait(`set_role ${roleSelect.value}`);
                 await sendCommandAndWait(`set_sync_rc_channel ${syncAuxSelect.value}`);
                 await sendCommandAndWait(`set_stop_rc_channel ${stopAuxSelect.value}`);
@@ -393,7 +390,6 @@
                 if(txTimeInput.value) await sendCommandAndWait(`set_tx_time ${txTimeInput.value}`);
                 if(guardTimeInput.value) await sendCommandAndWait(`set_guard_time ${guardTimeInput.value}`);
                 
-                // FILTER VTX LISTS (Don't send invalid freqs)
                 const min = parseInt(vrxMinInput.value) || 0;
                 const max = parseInt(vrxMaxInput.value) || 9999;
                 
@@ -513,13 +509,12 @@
         vrxMinInput.addEventListener('input', checkRanges);
         vrxMaxInput.addEventListener('input', checkRanges);
 
-
         // --- 7. COMMS (Faster Timings) ---
         let currentResponseBuffer = "";
         async function sendCommandAndWait(cmd) {
             currentResponseBuffer = ""; 
             await sendSlow(cmd);
-            await new Promise(r => setTimeout(r, 300)); // Lowered from 800
+            await new Promise(r => setTimeout(r, 300)); 
             return currentResponseBuffer;
         }
         async function sendSlow(cmd) {
@@ -527,7 +522,7 @@
             const encoder = new TextEncoder();
             for (let i = 0; i < cmd.length; i++) {
                 await writerStream.write(encoder.encode(cmd[i]));
-                await new Promise(r => setTimeout(r, 10)); // Lowered from 15
+                await new Promise(r => setTimeout(r, 10)); 
             }
             await writerStream.write(encoder.encode("\r"));
         }
@@ -549,44 +544,123 @@
             debugLog.scrollTop = debugLog.scrollHeight;
         }
 
-        // --- 8. VISUALIZER & POPUP ---
+        // --- 8. VISUALIZER & RULER ---
         function resizeCanvas() {
-            canvas.width = vizContainer.offsetWidth;
-            canvas.height = vizContainer.offsetHeight;
+            // Handle High-DPI for crisp ruler
+            const dpr = window.devicePixelRatio || 1;
+            const rect = vizContainer.getBoundingClientRect();
+            
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            
+            ctx.scale(dpr, dpr);
             drawViz();
         }
+
         function drawViz() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const rect = vizContainer.getBoundingClientRect();
+            const w = rect.width;
+            const h = rect.height;
+
+            // Layout Dimensions
+            const frameH = 40; // Height of the "Frame" (Bar area)
+            const textY = 54;  // Y position for text
+
+            // Clear canvas
+            ctx.clearRect(0, 0, w, h);
+
             const min = parseInt(vrxMinInput.value) || 4200;
             const max = parseInt(vrxMaxInput.value) || 4900;
             const range = max - min;
-            const w = canvas.width, h = canvas.height;
-            const margin = 10, drawW = w - (margin * 2);
+            
+            // 1. Draw The "Visualisation Frame" (Background & Border)
+            ctx.fillStyle = '#fafafa';
+            ctx.fillRect(0, 0, w, frameH);
+            
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(0, 0, w, frameH);
 
-            ctx.strokeStyle = '#ddd'; ctx.lineWidth = 4; ctx.lineCap = 'round';
-            ctx.beginPath(); ctx.moveTo(margin, h/2); ctx.lineTo(w - margin, h/2); ctx.stroke();
+            // 2. Draw Ruler (Ticks & Text BELOW frame)
+            if (range > 0) {
+                ctx.strokeStyle = '#999';
+                ctx.fillStyle = '#666';
+                ctx.font = '10px sans-serif';
 
+                const startTick = Math.ceil(min / 100) * 100;
+
+                for (let f = startTick; f <= max; f += 100) {
+                    const pct = (f - min) / range;
+                    if (pct < 0 || pct > 1) continue;
+
+                    const x = pct * w;
+
+                    // Draw Tick (Connecting frame to text)
+                    ctx.beginPath();
+                    ctx.moveTo(x, frameH);     // Start at bottom of frame
+                    ctx.lineTo(x, frameH + 6); // Draw 6px down
+                    ctx.stroke();
+
+                    // --- ALIGNMENT LOGIC ---
+                    // If at start (0%), align Left
+                    // If at end (100%), align Right
+                    // Otherwise, Center
+                    if (Math.abs(pct) < 0.001) {
+                        ctx.textAlign = 'left';
+                    } else if (Math.abs(pct - 1) < 0.001) {
+                        ctx.textAlign = 'right';
+                    } else {
+                        ctx.textAlign = 'center';
+                    }
+
+                    // Draw Text
+                    ctx.fillText(f, x, textY);
+                }
+            }
+
+            // 3. Draw Center Baseline (Inside Frame)
+            ctx.strokeStyle = '#ddd'; 
+            ctx.lineWidth = 2; 
+            ctx.beginPath(); 
+            ctx.moveTo(0, frameH/2); 
+            ctx.lineTo(w, frameH/2); 
+            ctx.stroke();
+
+            // 4. Draw VTX1 Markers (Blue - Above Baseline)
             ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--vtx1-color').trim();
             vtx1Freqs.forEach(f => {
                 if(f < min || f > max) return;
-                const x = margin + ((f - min) / range * drawW);
-                ctx.beginPath(); ctx.moveTo(x, h/2 - 5); ctx.lineTo(x - 4, h/2 - 15); ctx.lineTo(x + 4, h/2 - 15); ctx.fill();
+                const x = (f - min) / range * w;
+                ctx.beginPath(); 
+                ctx.moveTo(x, frameH/2 - 4); 
+                ctx.lineTo(x - 5, frameH/2 - 14); 
+                ctx.lineTo(x + 5, frameH/2 - 14); 
+                ctx.fill();
             });
+
+            // 5. Draw VTX2 Markers (Green - Below Baseline)
             ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--vtx2-color').trim();
             vtx2Freqs.forEach(f => {
                 if(f < min || f > max) return;
-                const x = margin + ((f - min) / range * drawW);
-                ctx.beginPath(); ctx.moveTo(x, h/2 + 5); ctx.lineTo(x - 4, h/2 + 15); ctx.lineTo(x + 4, h/2 + 15); ctx.fill();
+                const x = (f - min) / range * w;
+                ctx.beginPath(); 
+                ctx.moveTo(x, frameH/2 + 4); 
+                ctx.lineTo(x - 5, frameH/2 + 14); 
+                ctx.lineTo(x + 5, frameH/2 + 14); 
+                ctx.fill();
             });
         }
+
+        // Mapping Logic for Click Interaction
         function getFreqFromX(x) {
             const min = parseInt(vrxMinInput.value) || 4200;
             const max = parseInt(vrxMaxInput.value) || 4900;
-            const drawW = canvas.width - 20;
-            let pct = (x - 10) / drawW;
+            const drawW = vizContainer.offsetWidth; // No margin substraction
+            let pct = x / drawW;
             return Math.round(min + (Math.max(0, Math.min(1, pct)) * (max - min)));
         }
 
+        // Canvas Interactions
         canvas.addEventListener('mousemove', (e) => {
             if(isPopupOpen) return;
             const rect = canvas.getBoundingClientRect();

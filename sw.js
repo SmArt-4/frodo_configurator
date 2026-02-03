@@ -1,4 +1,4 @@
-const CACHE_NAME = 'frodo-v1.2';
+const CACHE_NAME = 'frodo-v1.3';
 const ASSETS_TO_CACHE = [
   './',
   './frodo.html',

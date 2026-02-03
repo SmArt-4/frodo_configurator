@@ -164,6 +164,26 @@
         .btn-vtx2 { background-color: var(--vtx2-color); opacity: 0.5; }
         .btn-vtx2.active { opacity: 1; border: 2px solid #1e7e34; }
 
+        /* RANDOM GENERATOR POPUP */
+        .overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: none; z-index: 200;
+        }
+        .overlay.show { display: block; }
+        .rand-popup {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #fff; border: 1px solid #ddd; border-radius: 8px; width: min(560px, 95vw);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 201; display: none;
+        }
+        .rand-popup.show { display: block; }
+        .rand-header { padding: 12px 14px; font-weight: 700; border-bottom: 1px solid #eee; display:flex; justify-content: space-between; align-items:center; }
+        .rand-body { padding: 12px 14px; display: grid; gap: 10px; }
+        .rand-row { display: flex; align-items: center; gap: 10px; }
+        .rand-row label { width: 160px; color: #666; font-weight: 600; }
+        .rand-row .grow { flex: 1; }
+        .rand-footer { padding: 12px 14px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end; }
+        .rand-textarea { width: 100%; min-height: 56px; resize: vertical; font-family: monospace; font-size: 12px; }
+        .rand-note { font-size: 12px; color: #666; }
+
         /* VTX RICH INPUT STYLES */
         .vtx-wrapper { position: relative; flex-grow: 1; display: flex; }
         
@@ -221,6 +241,7 @@
                     <button id="resetBtn" class="btn-blue text-right">Reset to default</button>
                 </div>
             </div>
+            <button id="helpBtn" class="btn-blue" title="Help" style="padding:6px 10px; border-radius:50%; width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center;">?</button>
         </div>
     </div>
 
@@ -246,10 +267,6 @@
                     <label>Time on freq:</label>
                     <input type="text" id="txTimeInput" placeholder="...">
                 </div>
-                <div class="form-row">
-                    <label>Additional ms:</label>
-                    <input type="text" id="guardTimeInput" placeholder="...">
-                </div>
             </div>
         </div>
     </div>
@@ -257,13 +274,14 @@
     <div class="freq-block">
         <h3>Freq settings</h3>
         
-        <div class="form-row" style="max-width: 400px;">
+        <div class="form-row" style="max-width: 600px; gap: 10px;">
             <label>VRX range:</label>
             <div class="range-inputs">
                 <input type="number" id="vrxMin" value="4200">
                 <span>-</span>
                 <input type="number" id="vrxMax" value="4900">
             </div>
+            <button id="randBtn" class="btn-blue" style="margin-left:auto;">Random</button>
         </div>
 
         <div class="viz-container" id="vizContainer">
@@ -295,6 +313,11 @@
 
     <div id="debugLog">Ready. Connect OTG adapter first!</div>
 
+    <details id="cliPanel" style="margin-top: 12px;">
+        <summary style="cursor:pointer; font-weight:600;">CLI commands</summary>
+        <textarea id="cliTextarea" style="width:100%; height:120px; margin-top:8px; box-sizing:border-box; font-family:monospace; font-size:12px;"></textarea>
+    </details>
+
     <script>
         // DOM Elements
         const connectBtn = document.getElementById('connectBtn');
@@ -305,10 +328,10 @@
         const stopAuxSelect = document.getElementById('stopAuxSelect');
         const swLatencyInput = document.getElementById('swLatencyInput');
         const txTimeInput = document.getElementById('txTimeInput');
-        const guardTimeInput = document.getElementById('guardTimeInput');
         
         const vrxMinInput = document.getElementById('vrxMin');
         const vrxMaxInput = document.getElementById('vrxMax');
+        const randBtn = document.getElementById('randBtn');
         
         // VTX Rich Inputs
         const vtx1Input = document.getElementById('vtx1Input');
@@ -332,6 +355,11 @@
         const popupLabel = document.getElementById('popupLabel');
         const popupVtx1 = document.getElementById('popupVtx1');
         const popupVtx2 = document.getElementById('popupVtx2');
+        const helpBtn = document.getElementById('helpBtn');
+
+        // Random Generator Popup Elements (created dynamically)
+        let randPopup, randOverlay, randModeAdd, randModeReplace, randExcl, randCount, randTargetV1, randTargetV2, randTargetBoth, randFillBtn, randCloseBtn;
+        let helpOverlay, helpPopup, helpCloseBtn;
 
         // Logic Variables
         let port, writerStream, reader;
@@ -418,23 +446,10 @@
             writeBtn.disabled = true; document.body.style.cursor = 'wait';
             
             try {
-                await sendCommandAndWait(`set_role ${roleSelect.value}`);
-                await sendCommandAndWait(`set_sync_rc_channel ${syncAuxSelect.value}`);
-                await sendCommandAndWait(`set_stop_rc_channel ${stopAuxSelect.value}`);
-                if(swLatencyInput.value) await sendCommandAndWait(`set_sw_latency ${swLatencyInput.value}`);
-                if(txTimeInput.value) await sendCommandAndWait(`set_tx_time ${txTimeInput.value}`);
-                if(guardTimeInput.value) await sendCommandAndWait(`set_guard_time ${guardTimeInput.value}`);
-                
-                const min = parseInt(vrxMinInput.value) || 0;
-                const max = parseInt(vrxMaxInput.value) || 9999;
-                
-                const validVtx1 = vtx1Freqs.filter(f => f >= min && f <= max);
-                const validVtx2 = vtx2Freqs.filter(f => f >= min && f <= max);
-
-                if(validVtx1.length > 0) await sendCommandAndWait(`set_vtx1_freq ${validVtx1.join(' ')}`);
-                if(validVtx2.length > 0) await sendCommandAndWait(`set_vtx2_freq ${validVtx2.join(' ')}`);
-                
-                await sendCommandAndWait("save");
+                const commands = getCommandsForWrite();
+                for (const cmd of commands) {
+                    await sendCommandAndWait(cmd);
+                }
                 alert("Settings saved!");
             } catch (e) { log(`Write Error: ${e}`); }
             finally { writeBtn.disabled = false; document.body.style.cursor = 'default'; }
@@ -461,11 +476,11 @@
                 parseValue(await sendCommandAndWait("set_stop_rc_channel"), stopAuxSelect, "Stop_AUX");
                 parseValue(await sendCommandAndWait("set_sw_latency"), swLatencyInput, "Latency");
                 parseValue(await sendCommandAndWait("set_tx_time"), txTimeInput, "TX Time");
-                parseValue(await sendCommandAndWait("set_guard_time"), guardTimeInput, "Guard Time");
                 parseVtxList(await sendCommandAndWait("set_vtx1_freq"), 1);
                 parseVtxList(await sendCommandAndWait("set_vtx2_freq"), 2);
                 log("--- Done ---");
                 drawViz();
+                updateCliTextarea();
             } catch (e) { log(`Read Error: ${e}`); }
         }
 
@@ -539,6 +554,7 @@
                 display.classList.remove('hidden');
                 input.classList.remove('active');
                 drawViz();
+                updateCliTextarea();
             });
         }
         setupVtxSwap(vtx1Display, vtx1Input, 1);
@@ -548,6 +564,7 @@
             updateVtxDisplay(1);
             updateVtxDisplay(2);
             drawViz();
+            updateCliTextarea();
         }
         vrxMinInput.addEventListener('input', checkRanges);
         vrxMaxInput.addEventListener('input', checkRanges);
@@ -744,6 +761,7 @@
             updateVtxDisplay(vtxNum);
             if(vtxNum===1) popupVtx1.classList.toggle('active'); else popupVtx2.classList.toggle('active');
             drawViz();
+            updateCliTextarea();
         }
         popupVtx1.addEventListener('click', () => toggleFreq(1));
         popupVtx2.addEventListener('click', () => toggleFreq(2));
@@ -758,6 +776,430 @@
             resetRow.classList.remove('show'); 
             log("Reset not implemented"); 
         });
+
+        // --- 9. RANDOM GENERATOR POPUP ---
+        function createRandPopupIfNeeded() {
+            if (randPopup) return;
+
+            // Overlay
+            randOverlay = document.createElement('div');
+            randOverlay.className = 'overlay';
+            document.body.appendChild(randOverlay);
+
+            // Popup
+            randPopup = document.createElement('div');
+            randPopup.className = 'rand-popup';
+            randPopup.innerHTML = `
+                <div class="rand-header">
+                    <span>Generate VTX channels</span>
+                    <button class="btn-blue" id="randCloseBtn" style="background:#999;">✕</button>
+                </div>
+                <div class="rand-body">
+                    <div class="rand-row">
+                        <label>Mode:</label>
+                        <div class="grow">
+                            <label><input type="radio" name="randMode" id="randModeAdd" value="add" checked> Add</label>
+                            <label style="margin-left:16px;"><input type="radio" name="randMode" id="randModeReplace" value="replace"> Replace</label>
+                        </div>
+                    </div>
+                    <div class="rand-row">
+                        <label>Target:</label>
+                        <div class="grow">
+                            <label><input type="radio" name="randTarget" id="randTargetV1" value="v1" checked> VTX1</label>
+                            <label style="margin-left:16px;"><input type="radio" name="randTarget" id="randTargetV2" value="v2"> VTX2</label>
+                            <label style="margin-left:16px;"><input type="radio" name="randTarget" id="randTargetBoth" value="both"> Both</label>
+                        </div>
+                    </div>
+                    <div class="rand-row" style="align-items:flex-start;">
+                        <label>I got harmonics on:</label>
+                        <div class="grow">
+                            <textarea id="randExcl" class="rand-textarea" placeholder="Examples: 4444-4500  4444..4500  4444...4500  4444 4445 4446\nAlso supported: 4444 to 4500, 4444—4500 (dash), comma/space separated."></textarea>
+                            <div class="rand-note">These frequencies will be EXCLUDED from randomization. Ranges can use -, .., ..., en-dash, or "to".</div>
+                        </div>
+                    </div>
+                    <div class="rand-row">
+                        <label>Desired number of channels:</label>
+                        <div class="grow">
+                            <textarea id="randCount" class="rand-textarea" style="min-height:34px; height:34px;"></textarea>
+                            <div class="rand-note">Only digits are used; other characters will be ignored.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="rand-footer">
+                    <button class="btn-blue" id="randFillBtn">Fill</button>
+                </div>
+            `;
+            document.body.appendChild(randPopup);
+
+            // Hook controls
+            randModeAdd = randPopup.querySelector('#randModeAdd');
+            randModeReplace = randPopup.querySelector('#randModeReplace');
+            randExcl = randPopup.querySelector('#randExcl');
+            randCount = randPopup.querySelector('#randCount');
+            randTargetV1 = randPopup.querySelector('#randTargetV1');
+            randTargetV2 = randPopup.querySelector('#randTargetV2');
+            randTargetBoth = randPopup.querySelector('#randTargetBoth');
+            randFillBtn = randPopup.querySelector('#randFillBtn');
+            randCloseBtn = randPopup.querySelector('#randCloseBtn');
+
+            randCloseBtn.addEventListener('click', closeRandPopup);
+            randOverlay.addEventListener('click', closeRandPopup);
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeRandPopup(); });
+            randCount.addEventListener('input', () => {
+                // keep only digits
+                const digits = (randCount.value.match(/\d+/g) || []).join('');
+                if (randCount.value !== digits) randCount.value = digits;
+            });
+            randFillBtn.addEventListener('click', onRandFill);
+        }
+
+        function openRandPopup() {
+            createRandPopupIfNeeded();
+            randOverlay.classList.add('show');
+            randPopup.classList.add('show');
+        }
+        function closeRandPopup() {
+            if (!randPopup) return;
+            randOverlay.classList.remove('show');
+            randPopup.classList.remove('show');
+        }
+
+        function parseExclusions(input, min, max) {
+            const set = new Set();
+            if (!input) return set;
+            const tokens = input
+                .replace(/[,;\n]+/g, ' ') // normalize separators
+                .trim()
+                .split(/\s+/);
+            for (const t of tokens) {
+                if (!t) continue;
+                // Normalize range separators
+                const norm = t.replace(/…|–|—/g, '-') // ellipsis/en/em dash to '-'
+                              .replace(/\.{2,}/g, '-') // .. or ... to '-'
+                              .toLowerCase();
+                if (/^\d+\s*(to|-)+\s*\d+$/.test(norm)) {
+                    const parts = norm.split(/to|-+/);
+                    let a = parseInt(parts[0], 10), b = parseInt(parts[1], 10);
+                    if (Number.isFinite(a) && Number.isFinite(b)) {
+                        if (a > b) [a, b] = [b, a];
+                        a = Math.max(a, min); b = Math.min(b, max);
+                        for (let v = a; v <= b; v++) set.add(v);
+                    }
+                } else if (/^\d+$/.test(norm)) {
+                    const v = parseInt(norm, 10);
+                    if (v >= min && v <= max) set.add(v);
+                }
+                // Everything else ignored silently
+            }
+            return set;
+        }
+
+        function generateRandomNonAdjacent(count, min, max, excludeSet) {
+            // Build pool of allowed freqs
+            const pool = [];
+            for (let v = min; v <= max; v++) {
+                if (!excludeSet.has(v)) pool.push(v);
+            }
+            if (pool.length === 0) return [];
+            // Shuffle pool for randomness
+            for (let i = pool.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [pool[i], pool[j]] = [pool[j], pool[i]];
+            }
+            const picked = [];
+            const pickedSet = new Set();
+            for (const v of pool) {
+                if (picked.length >= count) break;
+                // avoid immediate neighbors (no consecutive values)
+                if (pickedSet.has(v) || pickedSet.has(v - 1) || pickedSet.has(v + 1)) continue;
+                picked.push(v);
+                pickedSet.add(v);
+            }
+            // Keep randomized order (do not sort) to avoid "consecutive hundreds" visual effect
+            return picked;
+        }
+
+        function unionUniquePreserve(a, b) {
+            const seen = new Set();
+            const out = [];
+            function pushIfNew(x){ if(!seen.has(x)){ seen.add(x); out.push(x);} }
+            a.forEach(pushIfNew);
+            b.forEach(pushIfNew);
+            return out;
+        }
+
+        function onRandFill() {
+            const min = parseInt(vrxMinInput.value) || 0;
+            const max = parseInt(vrxMaxInput.value) || 0;
+            if (!(max > min)) { alert('Invalid VRX range'); return; }
+
+            const excl = parseExclusions(randExcl.value, min, max);
+            const desired = parseInt((randCount.value || '0'), 10) || 0;
+            if (desired <= 0) { alert('Enter desired number of channels (positive number)'); return; }
+
+            const list = generateRandomNonAdjacent(desired, min, max, excl);
+            if (list.length === 0) { alert('No available frequencies to choose from. Adjust range/exclusions.'); return; }
+            if (list.length < desired) {
+                log(`Warning: Only ${list.length} non-consecutive channels available within range and exclusions (requested ${desired}).`);
+            }
+
+            const mode = randModeReplace.checked ? 'replace' : 'add';
+            const applyTo = randTargetBoth && randTargetBoth.checked ? 'both' : (randTargetV2 && randTargetV2.checked ? 'v2' : 'v1');
+
+            function applyToOne(which, srcList) {
+                if (which === 'v1') {
+                    if (mode === 'replace') vtx1Freqs = srcList.slice();
+                    else vtx1Freqs = unionUniquePreserve(vtx1Freqs, srcList);
+                    updateVtxDisplay(1);
+                } else if (which === 'v2') {
+                    if (mode === 'replace') vtx2Freqs = srcList.slice();
+                    else vtx2Freqs = unionUniquePreserve(vtx2Freqs, srcList);
+                    updateVtxDisplay(2);
+                }
+            }
+            if (applyTo === 'both') {
+                // Distribute almost evenly by alternating assignment
+                const v1List = [];
+                const v2List = [];
+                list.forEach((v, i) => { (i % 2 === 0 ? v1List : v2List).push(v); });
+                applyToOne('v1', v1List);
+                applyToOne('v2', v2List);
+            } else {
+                applyToOne(applyTo, list);
+            }
+
+            drawViz();
+            updateCliTextarea();
+            closeRandPopup();
+        }
+
+        randBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            openRandPopup();
+        });
+
+        // --- 10. HELP MODAL ---
+        function createHelpModalIfNeeded() {
+            if (helpPopup) return;
+            // Overlay
+            helpOverlay = document.createElement('div');
+            helpOverlay.className = 'overlay';
+            document.body.appendChild(helpOverlay);
+
+            // Popup (reuse rand-popup styles)
+            helpPopup = document.createElement('div');
+            helpPopup.className = 'rand-popup';
+            helpPopup.style.maxHeight = '80vh';
+            helpPopup.style.overflow = 'hidden';
+            helpPopup.innerHTML = `
+                <div class="rand-header">
+                    <span>Опис команд терміналу</span>
+                    <button class="btn-blue" id="helpCloseBtn" style="background:#999;">✕</button>
+                </div>
+                <div class="rand-body" style="overflow:auto; max-height:calc(80vh - 110px);">
+                    <details open>
+                        <summary><strong>help</strong></summary>
+                        <p><em>Призначення</em><br>Команда відображає службову інформацію прошивки (commit) та повний список доступних команд CLI з короткими описами кожної.</p>
+                        <p><em>Використання</em><br>Виконується без аргументів.<br>Приклад: <code>help</code></p>
+                        <p><em>Результат</em><br>виводиться рядок типу <code>Commit c01aa72;</code> далі — перелік усіх команд (set_guard_time, set_role, set_tx_time, set_vtx1_freq тощо) та їх коротких описів.</p>
+                    </details>
+                    <details>
+                        <summary><strong>set_guard_time</strong></summary>
+                        <p><em>Призначення</em><br>Встановлює додатковий «запас» часу (safety buffer / paranoia), який додається до основного часу перемикання частоти.</p>
+                        <p><em>Використання</em><br>Без аргументів — показує поточне значення: <code>set_guard_time</code><br>З аргументом (мс) — встановлює нове: <code>set_guard_time 30</code></p>
+                        <p><em>Примітки</em><br>Типове значення — близько 20 мс. Занадто великий guard_time збільшує цикл хопінгу.</p>
+                    </details>
+                    <details>
+                        <summary><strong>set_role</strong></summary>
+                        <p><em>Призначення</em><br>Роль пристрою: ground або air.</p>
+                        <p><em>Використання</em><br>Без аргументів — показ поточного значення: <code>set_role</code><br>З аргументом — встановлення: <code>set_role 0</code> (ground), <code>set_role 1</code> (air)</p>
+                        <p><em>Примітки</em><br>Пара має бути налаштована як ground/air відповідно.</p>
+                    </details>
+                    <details>
+                        <summary><strong>set_stop_rc_channel</strong></summary>
+                        <p><em>Призначення</em><br>Вибір RC‑каналу для команди «зупинки» хопінгу/передачі.</p>
+                        <p><em>Використання</em><br>Показ: <code>set_stop_rc_channel</code><br>Встановлення: <code>set_stop_rc_channel 9</code></p>
+                        <p><em>Примітки</em><br>Інтерпретація стану каналу залежить від прошивки.</p>
+                    </details>
+                    <details>
+                        <summary><strong>set_sw_latency</strong></summary>
+                        <p><em>Призначення</em><br>Задає апаратну затримку перемикання частоти (мс).</p>
+                        <p><em>Використання</em><br>Показ: <code>set_sw_latency</code><br>Встановлення: <code>set_sw_latency 150</code></p>
+                        <p><em>Примітки</em><br>Типово ~100 мс. Замале/завелике значення впливає на стабільність/швидкість хопінгу.</p>
+                    </details>
+                    <details>
+                        <summary><strong>set_sync_rc_channel</strong></summary>
+                        <p><em>Призначення</em><br>RC‑канал для синхронізації або додаткового керування режимом.</p>
+                        <p><em>Використання</em><br>Показ: <code>set_sync_rc_channel</code><br>Встановлення: <code>set_sync_rc_channel 5</code></p>
+                    </details>
+                    <details>
+                        <summary><strong>set_tx_time</strong></summary>
+                        <p><em>Призначення</em><br>Тривалість перебування на частоті під час хопінгу (мс).</p>
+                        <p><em>Використання</em><br>Показ: <code>set_tx_time</code><br>Встановлення: <code>set_tx_time 2500</code></p>
+                        <p><em>Примітки</em><br>Мінімум: <code>sw_latency + guard_time</code>. Більший час — довші слоти, повільніший обхід.</p>
+                    </details>
+                    <details>
+                        <summary><strong>set_vtx1_freq</strong></summary>
+                        <p><em>Призначення</em><br>Список робочих частот для VTX1.</p>
+                        <p><em>Використання</em><br>Показ: <code>set_vtx1_freq</code><br>Встановлення: <code>set_vtx1_freq 4200 4250 4300 ...</code></p>
+                        <p><em>Примітки</em><br>Частоти мають бути у дозволеному діапазоні вашого VTX.</p>
+                    </details>
+                    <details>
+                        <summary><strong>set_vtx2_freq</strong></summary>
+                        <p><em>Призначення</em><br>Аналогічно до VTX1, але для VTX2.</p>
+                        <p><em>Використання</em><br>Показ: <code>set_vtx2_freq</code><br>Встановлення: <code>set_vtx2_freq 4500 4550 4600 ...</code></p>
+                    </details>
+                </div>
+                <div class="rand-footer">
+                    <button class="btn-blue" id="helpCloseBtn2">Close</button>
+                </div>
+            `;
+            document.body.appendChild(helpPopup);
+
+            helpCloseBtn = helpPopup.querySelector('#helpCloseBtn');
+            const helpCloseBtn2 = helpPopup.querySelector('#helpCloseBtn2');
+
+            const close = () => closeHelpModal();
+            helpCloseBtn.addEventListener('click', close);
+            helpCloseBtn2.addEventListener('click', close);
+            helpOverlay.addEventListener('click', close);
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+        }
+
+        function openHelpModal() {
+            createHelpModalIfNeeded();
+            helpOverlay.classList.add('show');
+            helpPopup.classList.add('show');
+        }
+        function closeHelpModal() {
+            if (!helpPopup) return;
+            helpOverlay.classList.remove('show');
+            helpPopup.classList.remove('show');
+        }
+
+        helpBtn.addEventListener('click', (e) => { e.preventDefault(); openHelpModal(); });
+        // --- 9. CLI COMMANDS PANEL ---
+        const cliTextarea = document.getElementById('cliTextarea');
+        let cliProgrammatic = false;
+        let cliParseTimer = null;
+        let cliUserEditing = false;
+
+        function getVrxRange() {
+            const min = parseInt(vrxMinInput.value) || 0;
+            const max = parseInt(vrxMaxInput.value) || 9999;
+            return [min, max];
+        }
+
+        function buildCliCommands(includeSave = true) {
+            const cmds = [];
+            cmds.push(`set_role ${roleSelect.value}`);
+            cmds.push(`set_sync_rc_channel ${syncAuxSelect.value}`);
+            cmds.push(`set_stop_rc_channel ${stopAuxSelect.value}`);
+            if (swLatencyInput.value) cmds.push(`set_sw_latency ${swLatencyInput.value}`);
+            if (txTimeInput.value) cmds.push(`set_tx_time ${txTimeInput.value}`);
+            // Always include guard time as 20 (hidden from UI)
+            cmds.push(`set_guard_time 20`);
+
+            const [min, max] = getVrxRange();
+            const validVtx1 = (vtx1Freqs || []).filter(f => f >= min && f <= max);
+            const validVtx2 = (vtx2Freqs || []).filter(f => f >= min && f <= max);
+            if (validVtx1.length > 0) cmds.push(`set_vtx1_freq ${validVtx1.join(' ')}`);
+            if (validVtx2.length > 0) cmds.push(`set_vtx2_freq ${validVtx2.join(' ')}`);
+
+            if (includeSave) cmds.push('save');
+            return cmds;
+        }
+
+        function updateCliTextarea() {
+            if (!cliTextarea) return;
+            cliProgrammatic = true;
+            cliTextarea.value = buildCliCommands(true).join('\n');
+            cliProgrammatic = false;
+        }
+
+        function getCommandsForWrite() {
+            const allowed = [
+                'set_role',
+                'set_sync_rc_channel',
+                'set_stop_rc_channel',
+                'set_sw_latency',
+                'set_tx_time',
+                'set_vtx1_freq',
+                'set_vtx2_freq',
+                'set_guard_time',
+                'save'
+            ];
+            const lines = (cliTextarea?.value || '').split(/\r?\n/)
+                .map(s => s.trim())
+                .filter(Boolean)
+                .filter(s => allowed.some(a => s.startsWith(a)));
+
+            // Remove any custom guard time and enforce 20
+            const filtered = lines.filter(l => !l.startsWith('set_guard_time'));
+            filtered.push('set_guard_time 20');
+            if (!filtered.some(l => l === 'save')) filtered.push('save');
+            return filtered;
+        }
+
+        function parseCliTextarea() {
+            const lines = cliTextarea.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+            let newVtx1 = null, newVtx2 = null;
+            for (const line of lines) {
+                if (/^set_role\s+/.test(line)) {
+                    const m = line.match(/^set_role\s+(\d+)/);
+                    if (m) roleSelect.value = m[1];
+                } else if (/^set_sync_rc_channel\s+/.test(line)) {
+                    const m = line.match(/^set_sync_rc_channel\s+(\d+)/);
+                    if (m) syncAuxSelect.value = m[1];
+                } else if (/^set_stop_rc_channel\s+/.test(line)) {
+                    const m = line.match(/^set_stop_rc_channel\s+(\d+)/);
+                    if (m) stopAuxSelect.value = m[1];
+                } else if (/^set_sw_latency\s+/.test(line)) {
+                    const m = line.match(/^set_sw_latency\s+(\d+)/);
+                    if (m) swLatencyInput.value = m[1];
+                } else if (/^set_tx_time\s+/.test(line)) {
+                    const m = line.match(/^set_tx_time\s+(\d+)/);
+                    if (m) txTimeInput.value = m[1];
+                } else if (/^set_vtx1_freq\s+/.test(line)) {
+                    const nums = line.replace(/^set_vtx1_freq\s+/, '').trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
+                    newVtx1 = nums;
+                } else if (/^set_vtx2_freq\s+/.test(line)) {
+                    const nums = line.replace(/^set_vtx2_freq\s+/, '').trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
+                    newVtx2 = nums;
+                }
+                // set_guard_time is intentionally ignored in UI (fixed to 20)
+            }
+            if (newVtx1 !== null) vtx1Freqs = newVtx1;
+            if (newVtx2 !== null) vtx2Freqs = newVtx2;
+            updateVtxDisplay(1);
+            updateVtxDisplay(2);
+            drawViz();
+        }
+
+        // Keep CLI in sync when UI changes
+        function maybeUpdateCli() { if (!cliUserEditing) updateCliTextarea(); }
+        roleSelect.addEventListener('change', maybeUpdateCli);
+        syncAuxSelect.addEventListener('change', maybeUpdateCli);
+        stopAuxSelect.addEventListener('change', maybeUpdateCli);
+        swLatencyInput.addEventListener('input', maybeUpdateCli);
+        txTimeInput.addEventListener('input', maybeUpdateCli);
+
+        cliTextarea.addEventListener('input', () => {
+            if (cliProgrammatic) return;
+            if (cliParseTimer) clearTimeout(cliParseTimer);
+            cliParseTimer = setTimeout(() => {
+                parseCliTextarea();
+            }, 300);
+        });
+
+        cliTextarea.addEventListener('focus', () => { cliUserEditing = true; });
+        cliTextarea.addEventListener('blur', () => { 
+            cliUserEditing = false; 
+            updateCliTextarea();
+        });
+
+        // Initialize CLI with current defaults
+        updateCliTextarea();
 
     </script>
 </body>

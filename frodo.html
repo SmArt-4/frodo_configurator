@@ -16,14 +16,68 @@
     </script>
     <style>
         :root {
-            --bg-color: #f4f4f9;
+            /* Light theme defaults */
+            --bg-color: #f7f7f9;
             --panel-bg: #ffffff;
-            --border-color: #ccc;
+            --border-color: #d9d9e0;
             --highlight: #007bff;
-            --text-color: #333;
+            --text-color: #1f2328;
+            --muted-bg: #eef0f3;
+            --muted-fg: #57606a;
+            --frame-bg: #fafafa;
+            --frame-border: #d0d7de;
+            --ruler-tick: #8c959f;
+            --ruler-text: #6e7781;
+            --baseline-color: #d8dee4;
             --vtx1-color: #007bff; /* Blue */
             --vtx2-color: #28a745; /* Green */
             --error-color: #dc3545;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #0d1117;
+                --panel-bg: #161b22;
+                --border-color: #30363d;
+                --highlight: #2f81f7;
+                --text-color: #e6edf3;
+                --muted-bg: #1f242d;
+                --muted-fg: #9ea7b3;
+                --frame-bg: #11161d;
+                --frame-border: #30363d;
+                --ruler-tick: #6e7681;
+                --ruler-text: #9ea7b3;
+                --baseline-color: #2d333b;
+            }
+        }
+
+        html[data-theme="light"] {
+            --bg-color: #f7f7f9;
+            --panel-bg: #ffffff;
+            --border-color: #d9d9e0;
+            --highlight: #007bff;
+            --text-color: #1f2328;
+            --muted-bg: #eef0f3;
+            --muted-fg: #57606a;
+            --frame-bg: #fafafa;
+            --frame-border: #d0d7de;
+            --ruler-tick: #8c959f;
+            --ruler-text: #6e7781;
+            --baseline-color: #d8dee4;
+        }
+        html[data-theme="dark"] {
+            --bg-color: #0d1117;
+            --panel-bg: #161b22;
+            --border-color: #30363d;
+            --highlight: #2f81f7;
+            --text-color: #e6edf3;
+            --muted-bg: #1f242d;
+            --muted-fg: #9ea7b3;
+            --frame-bg: #11161d;
+            --frame-border: #30363d;
+            --ruler-tick: #6e7681;
+            --ruler-text: #9ea7b3;
+            --baseline-color: #2d333b;
         }
 
         body { 
@@ -48,8 +102,8 @@
         label { font-weight: 600; font-size: 14px; margin-right: 5px; white-space: nowrap; }
         
         .commit-hash {
-            font-family: monospace; background: #eee; padding: 6px 8px; 
-            border-radius: 4px; border: 1px solid #ddd; color: #555; font-size: 13px;
+            font-family: monospace; background: var(--muted-bg); padding: 6px 8px; 
+            border-radius: 6px; border: 1px solid var(--border-color); color: var(--muted-fg); font-size: 13px;
         }
 
         /* INPUTS & BUTTONS */
@@ -84,7 +138,7 @@
         .dropdown-row.show { display: block; }
         .dropdown-row .btn-blue {
             border-radius: 4px; padding: 8px 12px; white-space: nowrap; display: block;
-            box-shadow: 0 6px 16px rgba(0,0,0,0.1); margin-bottom: 6px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.08); margin-bottom: 6px;
         }
         .dropdown-row .btn-blue:last-child { margin-bottom: 0; }
         
@@ -143,18 +197,18 @@
 
         /* POPUP */
         .freq-popup {
-            position: absolute; background: white; border: 1px solid #999; border-radius: 4px;
-            padding: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            position: absolute; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 4px;
+            padding: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.25);
             z-index: 100; display: none; transform: translate(-50%, -100%); margin-top: -10px;
-            text-align: center; min-width: 120px;
+            text-align: center; min-width: 120px; color: var(--text-color);
         }
         .freq-popup::after { 
             content: ""; position: absolute; top: 100%; left: 50%; margin-left: -6px;
-            border-width: 6px; border-style: solid; border-color: white transparent transparent transparent;
+            border-width: 6px; border-style: solid; border-color: var(--panel-bg) transparent transparent transparent;
         }
         .freq-popup::before { 
             content: ""; position: absolute; top: 100%; left: 50%; margin-left: -7px;
-            border-width: 7px; border-style: solid; border-color: #999 transparent transparent transparent; z-index: -1;
+            border-width: 7px; border-style: solid; border-color: var(--border-color) transparent transparent transparent; z-index: -1;
         }
         .freq-label { font-weight: bold; margin-bottom: 5px; font-size: 14px; display: block; }
         .popup-btns { display: flex; gap: 5px; justify-content: center; }
@@ -171,18 +225,45 @@
         .overlay.show { display: block; }
         .rand-popup {
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #fff; border: 1px solid #ddd; border-radius: 8px; width: min(560px, 95vw);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 201; display: none;
+            background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; width: min(560px, 95vw);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25); z-index: 201; display: none; color: var(--text-color);
         }
         .rand-popup.show { display: block; }
-        .rand-header { padding: 12px 14px; font-weight: 700; border-bottom: 1px solid #eee; display:flex; justify-content: space-between; align-items:center; }
-        .rand-body { padding: 12px 14px; display: grid; gap: 10px; }
+        .rand-header { padding: 12px 14px; font-weight: 700; border-bottom: 1px solid var(--border-color); display:flex; justify-content: space-between; align-items:center; color: var(--text-color); }
+        .rand-body { padding: 12px 14px; display: grid; gap: 10px; color: var(--text-color); }
         .rand-row { display: flex; align-items: center; gap: 10px; }
-        .rand-row label { width: 160px; color: #666; font-weight: 600; }
+        .rand-row label { width: 160px; color: var(--muted-fg); font-weight: 600; }
         .rand-row .grow { flex: 1; }
-        .rand-footer { padding: 12px 14px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end; }
-        .rand-textarea { width: 100%; min-height: 56px; resize: vertical; font-family: monospace; font-size: 12px; }
-        .rand-note { font-size: 12px; color: #666; }
+        .rand-footer { padding: 12px 14px; border-top: 1px solid var(--border-color); display: flex; gap: 8px; justify-content: flex-end; }
+        .rand-textarea { width: 100%; min-height: 56px; resize: vertical; font-family: monospace; font-size: 12px; background: var(--panel-bg); color: var(--text-color); border: 1px solid var(--border-color); }
+        .rand-note { font-size: 12px; color: var(--muted-fg); }
+
+        /* Help modal text/readability */
+        .rand-body p { margin: 0 0 8px 0; color: var(--text-color); }
+        .rand-body details { border: 1px solid var(--border-color); border-radius: 6px; background: var(--panel-bg); }
+        .rand-body details + details { margin-top: 8px; }
+        .rand-body details[open] { background: var(--panel-bg); }
+        .rand-body summary { list-style: none; cursor: pointer; padding: 10px 12px; color: var(--text-color); }
+        .rand-body summary::-webkit-details-marker { display: none; }
+        .rand-body summary:before { content: '▸'; display: inline-block; margin-right: 6px; transform: rotate(0deg); transition: transform 0.15s ease; color: var(--muted-fg); }
+        .rand-body details[open] > summary:before { transform: rotate(90deg); }
+        .rand-body code { background: var(--muted-bg); color: var(--text-color); border: 1px solid var(--border-color); padding: 0 4px; border-radius: 4px; }
+
+        /* Inputs inside modals respect theme */
+        .rand-body input[type="text"],
+        .rand-body input[type="number"],
+        .rand-body select {
+            background: var(--panel-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Override inline close button color in header for theme */
+        .rand-header button {
+            background: var(--muted-bg) !important;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
 
         /* VTX RICH INPUT STYLES */
         .vtx-wrapper { position: relative; flex-grow: 1; display: flex; }
@@ -212,12 +293,21 @@
 
         /* LOG WINDOW */
         #debugLog {
-            margin-top: 20px; font-family: monospace; font-size: 11px; color: #555;
-            height: 100px; overflow-y: scroll; border: 1px solid #ccc; background: #fff; padding: 10px;
+            margin-top: 20px; font-family: monospace; font-size: 11px; color: var(--muted-fg);
+            height: 100px; overflow-y: scroll; border: 1px solid var(--border-color); background: var(--panel-bg); padding: 10px;
+        }
+
+        /* Theme toggle */
+        .theme-toggle {
+            position: fixed; top: 10px; right: 10px; z-index: 500;
+            background: var(--panel-bg); color: var(--text-color);
+            border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 10px; font-size: 12px;
         }
     </style>
 </head>
 <body>
+
+    <button id="themeToggle" class="theme-toggle" title="Theme">Auto</button>
 
     <div class="header">
         <div class="header-group header-left">
@@ -375,6 +465,7 @@
         updateVtxDisplay(1);
         updateVtxDisplay(2);
         window.addEventListener('resize', resizeCanvas);
+        initTheme();
 
         // --- 1. POPULATE AUX ---
         function initAuxDropdowns() {
@@ -644,17 +735,24 @@
             const range = max - min;
             
             // 1. Draw The "Visualisation Frame" (Background & Border)
-            ctx.fillStyle = '#fafafa';
+            const cssVars = getComputedStyle(document.documentElement);
+            const frameBg = cssVars.getPropertyValue('--frame-bg').trim() || '#fafafa';
+            const frameBorder = cssVars.getPropertyValue('--frame-border').trim() || '#ccc';
+            const rulerTick = cssVars.getPropertyValue('--ruler-tick').trim() || '#999';
+            const rulerText = cssVars.getPropertyValue('--ruler-text').trim() || '#666';
+            const baselineColor = cssVars.getPropertyValue('--baseline-color').trim() || '#ddd';
+
+            ctx.fillStyle = frameBg;
             ctx.fillRect(0, 0, w, frameH);
             
-            ctx.strokeStyle = '#ccc';
+            ctx.strokeStyle = frameBorder;
             ctx.lineWidth = 1;
             ctx.strokeRect(0, 0, w, frameH);
 
             // 2. Draw Ruler (Ticks & Text BELOW frame)
             if (range > 0) {
-                ctx.strokeStyle = '#999';
-                ctx.fillStyle = '#666';
+                ctx.strokeStyle = rulerTick;
+                ctx.fillStyle = rulerText;
                 ctx.font = '10px sans-serif';
 
                 const startTick = Math.ceil(min / 100) * 100;
@@ -689,7 +787,7 @@
             }
 
             // 3. Draw Center Baseline (Inside Frame)
-            ctx.strokeStyle = '#ddd'; 
+            ctx.strokeStyle = baselineColor; 
             ctx.lineWidth = 2; 
             ctx.beginPath(); 
             ctx.moveTo(0, frameH/2); 
@@ -809,9 +907,9 @@
                     <div class="rand-row">
                         <label>Target:</label>
                         <div class="grow">
-                            <label><input type="radio" name="randTarget" id="randTargetV1" value="v1" checked> VTX1</label>
+                            <label><input type="radio" name="randTarget" id="randTargetV1" value="v1"> VTX1</label>
                             <label style="margin-left:16px;"><input type="radio" name="randTarget" id="randTargetV2" value="v2"> VTX2</label>
-                            <label style="margin-left:16px;"><input type="radio" name="randTarget" id="randTargetBoth" value="both"> Both</label>
+                            <label style="margin-left:16px;"><input type="radio" name="randTarget" id="randTargetBoth" value="both" checked> Both</label>
                         </div>
                     </div>
                     <div class="rand-row" style="align-items:flex-start;">
@@ -1082,6 +1180,32 @@
         }
 
         helpBtn.addEventListener('click', (e) => { e.preventDefault(); openHelpModal(); });
+
+        // THEME HANDLING
+        function applyTheme(mode) {
+            const root = document.documentElement;
+            if (mode === 'light') {
+                root.setAttribute('data-theme', 'light');
+            } else if (mode === 'dark') {
+                root.setAttribute('data-theme', 'dark');
+            } else {
+                root.removeAttribute('data-theme');
+            }
+            const btn = document.getElementById('themeToggle');
+            if (btn) btn.textContent = (mode === 'light' ? 'Light' : mode === 'dark' ? 'Dark' : 'Auto');
+            drawViz();
+        }
+        function initTheme() {
+            const saved = localStorage.getItem('frodo_theme') || 'auto';
+            applyTheme(saved);
+            const btn = document.getElementById('themeToggle');
+            if (btn) btn.addEventListener('click', () => {
+                const current = document.documentElement.getAttribute('data-theme') || 'auto';
+                const next = current === 'auto' ? 'dark' : current === 'dark' ? 'light' : 'auto';
+                localStorage.setItem('frodo_theme', next);
+                applyTheme(next);
+            });
+        }
         // --- 9. CLI COMMANDS PANEL ---
         const cliTextarea = document.getElementById('cliTextarea');
         let cliProgrammatic = false;

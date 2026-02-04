@@ -180,7 +180,7 @@
         .freq-block { padding: 10px 0; position: relative; }
         .freq-block h3 { margin: 0 0 15px 0; color: #555; font-size: 16px; border-bottom: 1px solid #eee; display: inline-block;}
         .range-inputs { display: flex; align-items: center; gap: 10px; flex-grow: 1; }
-        .range-inputs input { width: 80px; text-align: center; }
+        .range-inputs input { width: 40px; text-align: center; }
 
         /* VISUALIZER CANVAS */
         .viz-container {
@@ -236,7 +236,6 @@
         .rand-row .grow { flex: 1; }
         .rand-footer { padding: 12px 14px; border-top: 1px solid var(--border-color); display: flex; gap: 8px; justify-content: flex-end; }
         .rand-textarea { width: 100%; min-height: 56px; resize: vertical; font-family: monospace; font-size: 12px; background: var(--panel-bg); color: var(--text-color); border: 1px solid var(--border-color); }
-        .rand-note { font-size: 12px; color: var(--muted-fg); }
 
         /* Help modal text/readability */
         .rand-body p { margin: 0 0 8px 0; color: var(--text-color); }
@@ -249,14 +248,8 @@
         .rand-body details[open] > summary:before { transform: rotate(90deg); }
         .rand-body code { background: var(--muted-bg); color: var(--text-color); border: 1px solid var(--border-color); padding: 0 4px; border-radius: 4px; }
 
-        /* Inputs inside modals respect theme */
-        .rand-body input[type="text"],
-        .rand-body input[type="number"],
-        .rand-body select {
-            background: var(--panel-bg);
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-        }
+        /* Match VRX range cell look for randCount */
+        #randCount { width: 80px; text-align: center; }
 
         /* Override inline close button color in header for theme */
         .rand-header button {
@@ -450,6 +443,8 @@
         // Random Generator Popup Elements (created dynamically)
         let randPopup, randOverlay, randModeAdd, randModeReplace, randExcl, randCount, randTargetV1, randTargetV2, randTargetBoth, randFillBtn, randCloseBtn;
         let helpOverlay, helpPopup, helpCloseBtn;
+        let roleConfirmOverlay, roleConfirmPopup, roleConfirmText, roleConfirmYes, roleConfirmCancel, roleConfirmDontAsk;
+        let suppressRoleChangeConfirm = false;
 
         // Logic Variables
         let port, writerStream, reader;
@@ -542,6 +537,16 @@
             
             try {
                 const commands = getCommandsForWrite();
+                // Check for role change before write
+                const roleCmd = commands.find(c => /^set_role\s+\d+/.test(c));
+                if (roleCmd && !suppressRoleChangeConfirm) {
+                    const desiredRoleMatch = roleCmd.match(/^set_role\s+(\d+)/);
+                    const desiredRole = desiredRoleMatch ? parseInt(desiredRoleMatch[1], 10) : null;
+                    if (desiredRole !== null) {
+                        const proceed = await ensureRoleChangeOk(desiredRole);
+                        if (!proceed) { writeBtn.disabled = false; document.body.style.cursor = 'default'; return; }
+                    }
+                }
                 for (const cmd of commands) {
                     await sendCommandAndWait(cmd);
                 }
@@ -916,14 +921,12 @@
                         <label>I got harmonics on:</label>
                         <div class="grow">
                             <textarea id="randExcl" class="rand-textarea" placeholder="Examples: 4444-4500  4444..4500  4444...4500  4444 4445 4446\nAlso supported: 4444 to 4500, 4444—4500 (dash), comma/space separated."></textarea>
-                            <div class="rand-note">These frequencies will be EXCLUDED from randomization. Ranges can use -, .., ..., en-dash, or "to".</div>
                         </div>
                     </div>
                     <div class="rand-row">
-                        <label>Desired number of channels:</label>
+                        <label>Number of channels:</label>
                         <div class="grow">
-                            <textarea id="randCount" class="rand-textarea" style="min-height:34px; height:34px;"></textarea>
-                            <div class="rand-note">Only digits are used; other characters will be ignored.</div>
+                            <input id="randCount" type="number" min="4" max="99" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="4-99" />
                         </div>
                     </div>
                 </div>
@@ -948,9 +951,12 @@
             randOverlay.addEventListener('click', closeRandPopup);
             document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeRandPopup(); });
             randCount.addEventListener('input', () => {
-                // keep only digits
-                const digits = (randCount.value.match(/\d+/g) || []).join('');
-                if (randCount.value !== digits) randCount.value = digits;
+                // clamp between 4 and 99
+                let v = parseInt(randCount.value, 10);
+                if (Number.isNaN(v)) return;
+                if (v < 4) v = 4;
+                if (v > 99) v = 99;
+                randCount.value = v;
             });
             randFillBtn.addEventListener('click', onRandFill);
         }
@@ -1116,6 +1122,7 @@
                         <p><em>Призначення</em><br>Роль пристрою: ground або air.</p>
                         <p><em>Використання</em><br>Без аргументів — показ поточного значення: <code>set_role</code><br>З аргументом — встановлення: <code>set_role 0</code> (ground), <code>set_role 1</code> (air)</p>
                         <p><em>Примітки</em><br>Пара має бути налаштована як ground/air відповідно.</p>
+                        <p>Нагадування про змінук ролі відновляться після перезавантаження сторінки.</p>
                     </details>
                     <details>
                         <summary><strong>set_stop_rc_channel</strong></summary>
@@ -1205,6 +1212,73 @@
                 localStorage.setItem('frodo_theme', next);
                 applyTheme(next);
             });
+        }
+
+        // ROLE CHANGE CONFIRMATION
+        async function getDeviceRole() {
+            try {
+                const txt = await sendCommandAndWait('set_role');
+                const m = txt.match(/(\d+)/g);
+                if (m && m.length) return parseInt(m[m.length - 1], 10);
+            } catch (_) {}
+            return null;
+        }
+
+        function createRoleConfirmIfNeeded() {
+            if (roleConfirmPopup) return;
+            roleConfirmOverlay = document.createElement('div');
+            roleConfirmOverlay.className = 'overlay';
+            document.body.appendChild(roleConfirmOverlay);
+
+            roleConfirmPopup = document.createElement('div');
+            roleConfirmPopup.className = 'rand-popup';
+            roleConfirmPopup.innerHTML = `
+                <div class="rand-header"><span>Confirm role change</span></div>
+                <div class="rand-body">
+                    <p id="roleConfirmText">Changing role...</p>
+                </div>
+                <div class="rand-footer" style="justify-content: space-between; align-items: center;">
+                    <label style="display:flex; align-items:center; gap:6px; margin-right:auto; margin-left:4px;">
+                        <input type="checkbox" id="roleConfirmDontAsk"> <span>Не нагадувати</span>
+                    </label>
+                    <div style="display:flex; gap:8px;">
+                        <button id="roleConfirmCancel" style="background:#dc3545; color:#fff; border:none; border-radius:4px; padding:6px 12px; font-weight:600;">Cancel</button>
+                        <button id="roleConfirmYes" style="background:#28a745; color:#fff; border:none; border-radius:4px; padding:6px 12px; font-weight:600;">Yes</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(roleConfirmPopup);
+
+            roleConfirmText = roleConfirmPopup.querySelector('#roleConfirmText');
+            roleConfirmYes = roleConfirmPopup.querySelector('#roleConfirmYes');
+            roleConfirmCancel = roleConfirmPopup.querySelector('#roleConfirmCancel');
+            roleConfirmDontAsk = roleConfirmPopup.querySelector('#roleConfirmDontAsk');
+        }
+
+        function showRoleConfirm(currentRole, desiredRole) {
+            return new Promise(resolve => {
+                createRoleConfirmIfNeeded();
+                roleConfirmText.textContent = `Changing role from ${currentRole} to ${desiredRole}`;
+                roleConfirmOverlay.classList.add('show');
+                roleConfirmPopup.classList.add('show');
+                const cleanup = () => {
+                    roleConfirmOverlay.classList.remove('show');
+                    roleConfirmPopup.classList.remove('show');
+                };
+                roleConfirmCancel.onclick = () => { cleanup(); resolve(false); };
+                roleConfirmYes.onclick = () => { 
+                    if (roleConfirmDontAsk && roleConfirmDontAsk.checked) suppressRoleChangeConfirm = true;
+                    cleanup(); resolve(true);
+                };
+                const onEsc = (e) => { if (e.key === 'Escape') { document.removeEventListener('keydown', onEsc); cleanup(); resolve(false);} };
+                document.addEventListener('keydown', onEsc);
+                roleConfirmOverlay.onclick = () => { cleanup(); resolve(false); };
+            });
+        }
+
+        async function ensureRoleChangeOk(desiredRole) {
+            const current = await getDeviceRole();
+            if (current === null || current === desiredRole) return true;
+            return await showRoleConfirm(current, desiredRole);
         }
         // --- 9. CLI COMMANDS PANEL ---
         const cliTextarea = document.getElementById('cliTextarea');

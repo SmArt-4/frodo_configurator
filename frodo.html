@@ -379,7 +379,11 @@
         // --- 1. POPULATE AUX ---
         function initAuxDropdowns() {
             const auxOptions = [];
-            for (let i = 4; i <= 15; i++) auxOptions.push(`<option value="${i}">AUX${i}</option>`);
+            for (let i = 4; i <= 15; i++) {
+                // Keep sending original numeric values (4..15), but display as Ch5..Ch16
+                const display = `Ch${i + 1}`;
+                auxOptions.push(`<option value="${i}">${display}</option>`);
+            }
             syncAuxSelect.innerHTML = auxOptions.join('');
             stopAuxSelect.innerHTML = auxOptions.join('');
         }
@@ -1090,7 +1094,7 @@
             return [min, max];
         }
 
-        function buildCliCommands(includeSave = true) {
+        function buildCliCommands() {
             const cmds = [];
             cmds.push(`set_role ${roleSelect.value}`);
             cmds.push(`set_sync_rc_channel ${syncAuxSelect.value}`);
@@ -1105,15 +1109,13 @@
             const validVtx2 = (vtx2Freqs || []).filter(f => f >= min && f <= max);
             if (validVtx1.length > 0) cmds.push(`set_vtx1_freq ${validVtx1.join(' ')}`);
             if (validVtx2.length > 0) cmds.push(`set_vtx2_freq ${validVtx2.join(' ')}`);
-
-            if (includeSave) cmds.push('save');
             return cmds;
         }
 
         function updateCliTextarea() {
             if (!cliTextarea) return;
             cliProgrammatic = true;
-            cliTextarea.value = buildCliCommands(true).join('\n');
+            cliTextarea.value = buildCliCommands().join('\n');
             cliProgrammatic = false;
         }
 
@@ -1126,8 +1128,7 @@
                 'set_tx_time',
                 'set_vtx1_freq',
                 'set_vtx2_freq',
-                'set_guard_time',
-                'save'
+                'set_guard_time'
             ];
             const lines = (cliTextarea?.value || '').split(/\r?\n/)
                 .map(s => s.trim())
@@ -1137,7 +1138,6 @@
             // Remove any custom guard time and enforce 20
             const filtered = lines.filter(l => !l.startsWith('set_guard_time'));
             filtered.push('set_guard_time 20');
-            if (!filtered.some(l => l === 'save')) filtered.push('save');
             return filtered;
         }
 

@@ -258,6 +258,13 @@
         .rand-body details[open] > summary:before { transform: rotate(90deg); }
         .rand-body code { background: var(--muted-bg); color: var(--text-color); border: 1px solid var(--border-color); padding: 0 4px; border-radius: 4px; }
 
+        /* Help intro card */
+        .help-intro { border: 1px solid var(--border-color); border-radius: 6px; background: var(--panel-bg); padding: 10px 12px; margin-bottom: 10px; }
+        .help-intro h4 { margin: 0 0 6px 0; font-size: 14px; }
+        .help-intro ul { margin: 6px 0 0 18px; padding: 0; }
+        .help-intro li { margin: 4px 0; }
+        .help-intro .note { font-size: 12px; color: var(--muted-fg); margin-top: 6px; }
+
         /* Match VRX range cell look for randCount */
         #randCount { width: 80px; text-align: center; }
 
@@ -1173,6 +1180,16 @@
                     <button class="btn-blue" id="helpCloseBtn" style="background:#999;">✕</button>
                 </div>
                 <div class="rand-body" style="overflow:auto; max-height:calc(80vh - 110px);">
+                    <div class="help-intro">
+                        <p>Frodo для польотника як VTX на протоколі Tramp, але слухає лише команди потужності.</p>
+                        <h4>Ролі</h4>
+                        <ul>
+                            <li><strong>Air unit (1)</strong> — почергово вмикає обидва VTX для безперервності відео.</li>
+                            <li><strong>Ground unit (0)</strong> — у тій же послідовності перемикає VRX.</li>
+                        </ul>
+                        <p>Для синхронізації використовується <strong>Sync_channel AUX</strong> — обидва юніти мають отримати його одночасно, тому важливо не робити цього, коли зі зв'язком з дроном є проблеми. Реагує саме на <em>зміну</em> (не на фіксоване верхнє/нижнє значення).</p>
+                        <p><strong>Stop</strong>: при значенні ≈2000 на відповідному AUX юніт зупиняє перемикання послідовності. Якщо юніти почули команду неодночасно й зупинилися на різних частотах — повторіть Start/Stop.</p>
+                    </div>
                     <details open>
                         <summary><strong>help</strong></summary>
                         <p><em>Призначення</em><br>Команда відображає службову інформацію прошивки (commit) та повний список доступних команд CLI з короткими описами кожної.</p>

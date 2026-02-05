@@ -176,11 +176,21 @@
             width: auto;
         }
 
+        /* Input suffix (e.g., 'ms') */
+        .input-with-suffix { position: relative; flex-grow: 1; display: flex; }
+        .input-with-suffix input { padding-right: 32px; width: 100%; }
+        .input-with-suffix .suffix { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--muted-fg); font-size: 13px; pointer-events: none; }
+        /* Compact variant for small numeric cells (e.g., VRX range) */
+        .input-with-suffix.compact { display: inline-flex; flex-grow: 0; }
+        .input-with-suffix.compact input { width: 80px; }
+
         /* FREQ BLOCK */
         .freq-block { padding: 10px 0; position: relative; }
         .freq-block h3 { margin: 0 0 15px 0; color: #555; font-size: 16px; border-bottom: 1px solid #eee; display: inline-block;}
         .range-inputs { display: flex; align-items: center; gap: 10px; flex-grow: 1; }
         .range-inputs input { width: 40px; text-align: center; }
+        /* Ensure VRX inputs with suffix have enough width */
+        .range-inputs .input-with-suffix.compact input { width: 80px; }
 
         /* VISUALIZER CANVAS */
         .viz-container {
@@ -344,11 +354,17 @@
             <div class="col-time">
                 <div class="form-row">
                     <label>Switch_latency:</label>
-                    <input type="text" id="swLatencyInput" placeholder="...">
+                    <div class="input-with-suffix">
+                        <input type="text" id="swLatencyInput" placeholder="...">
+                        <span class="suffix">ms</span>
+                    </div>
                 </div>
                 <div class="form-row">
                     <label>Time on freq:</label>
-                    <input type="text" id="txTimeInput" placeholder="...">
+                    <div class="input-with-suffix">
+                        <input type="text" id="txTimeInput" placeholder="...">
+                        <span class="suffix">ms</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -360,9 +376,15 @@
         <div class="form-row" style="max-width: 600px; gap: 10px;">
             <label>VRX range:</label>
             <div class="range-inputs">
-                <input type="number" id="vrxMin" value="4200">
+                <div class="input-with-suffix compact">
+                    <input type="number" id="vrxMin" value="4200">
+                    <span class="suffix">MHz</span>
+                </div>
                 <span>-</span>
-                <input type="number" id="vrxMax" value="4900">
+                <div class="input-with-suffix compact">
+                    <input type="number" id="vrxMax" value="4900">
+                    <span class="suffix">MHz</span>
+                </div>
             </div>
             <button id="randBtn" class="btn-blue" style="margin-left:auto;">Random</button>
         </div>
@@ -472,6 +494,47 @@
             }
             syncAuxSelect.innerHTML = auxOptions.join('');
             stopAuxSelect.innerHTML = auxOptions.join('');
+
+            // Set defaults: Sync = Ch6 (value 5), Stop = Ch8 (value 7)
+            try { syncAuxSelect.value = '5'; } catch(_) {}
+            try { stopAuxSelect.value = '7'; } catch(_) {}
+            updateAuxDisables();
+        }
+
+        // Ensure AUX selectors are not equal
+        function auxValues() { const arr = []; for (let i = 4; i <= 15; i++) arr.push(String(i)); return arr; }
+        function pickAlternative(taken) {
+            const arr = auxValues();
+            const idx = arr.indexOf(String(taken));
+            if (idx === -1) return arr[0];
+            // pick next available (wrap)
+            for (let k = 1; k < arr.length; k++) {
+                const cand = arr[(idx + k) % arr.length];
+                if (cand !== String(taken)) return cand;
+            }
+            return arr[0];
+        }
+        function setDisabledExceptSelected(selectEl, valueToDisable) {
+            const disableVal = String(valueToDisable);
+            for (const opt of selectEl.options) {
+                if (opt.value === disableVal && opt.value !== selectEl.value) opt.disabled = true; else opt.disabled = false;
+            }
+        }
+        function updateAuxDisables() {
+            setDisabledExceptSelected(syncAuxSelect, stopAuxSelect.value);
+            setDisabledExceptSelected(stopAuxSelect, syncAuxSelect.value);
+        }
+        function ensureAuxDistinct(changed) {
+            const syncVal = syncAuxSelect.value;
+            const stopVal = stopAuxSelect.value;
+            if (syncVal && stopVal && syncVal === stopVal) {
+                if (changed === 'sync') {
+                    stopAuxSelect.value = pickAlternative(syncVal);
+                } else {
+                    syncAuxSelect.value = pickAlternative(stopVal);
+                }
+            }
+            updateAuxDisables();
         }
 
         // --- 2. CONNECT ---
@@ -499,6 +562,10 @@
                 log(`Error: ${err.message}`);
             }
         });
+
+        // Enforce distinct AUX selections on change
+        syncAuxSelect.addEventListener('change', () => { ensureAuxDistinct('sync'); maybeUpdateCli(); });
+        stopAuxSelect.addEventListener('change', () => { ensureAuxDistinct('stop'); maybeUpdateCli(); });
 
         // Graceful cleanup and UI reset on disconnect/errors
         async function cleanupPort() {
@@ -580,6 +647,7 @@
                 parseVtxList(await sendCommandAndWait("set_vtx2_freq"), 2);
                 log("--- Done ---");
                 drawViz();
+                updateAuxDisables();
                 updateCliTextarea();
             } catch (e) { log(`Read Error: ${e}`); }
         }
@@ -1367,6 +1435,9 @@
                 }
                 // set_guard_time is intentionally ignored in UI (fixed to 20)
             }
+            // Enforce AUX distinctness after parsing CLI overrides
+            ensureAuxDistinct();
+            updateAuxDisables();
             if (newVtx1 !== null) vtx1Freqs = newVtx1;
             if (newVtx2 !== null) vtx2Freqs = newVtx2;
             updateVtxDisplay(1);

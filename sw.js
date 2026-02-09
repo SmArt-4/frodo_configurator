@@ -1,5 +1,5 @@
 
-const CACHE_VERSION = 'v1.1.1';
+const CACHE_VERSION = 'v1.1.1.1';
 const CACHE_NAME = `frodo-${CACHE_VERSION}`;
 const CORE_ASSETS = [
   './frodo.html',

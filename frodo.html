@@ -362,14 +362,14 @@
                 <div class="form-row">
                     <label>Switch_latency:</label>
                     <div class="input-with-suffix">
-                        <input type="text" id="swLatencyInput" placeholder="...">
+                        <input type="text" id="swLatencyInput" value="150">
                         <span class="suffix">ms</span>
                     </div>
                 </div>
                 <div class="form-row">
                     <label>Time on freq:</label>
                     <div class="input-with-suffix">
-                        <input type="text" id="txTimeInput" placeholder="...">
+                        <input type="text" id="txTimeInput" value="2000">
                         <span class="suffix">ms</span>
                     </div>
                 </div>
@@ -1188,7 +1188,7 @@
                             <li><strong>Ground unit (0)</strong> — у тій же послідовності перемикає VRX.</li>
                         </ul>
                         <p>Для синхронізації використовується <strong>Sync_channel AUX</strong> — обидва юніти мають отримати його одночасно, тому важливо не робити цього, коли зі зв'язком з дроном є проблеми. Реагує саме на <em>зміну</em> (не на фіксоване верхнє/нижнє значення).</p>
-                        <p><strong>Stop</strong>: при значенні ≈2000 на відповідному AUX юніт зупиняє перемикання послідовності. Якщо юніти почули команду неодночасно й зупинилися на різних частотах — повторіть Start/Stop.</p>
+                        <p><strong>Stop</strong>: при значенні ≈2000 на відповідному AUX юніт зупиняє перемикання послідовності і потужносей!!! Щоб перемкнулась потужність поки що мають перемикатись частоти. Якщо юніти почули команду неодночасно й зупинилися на різних частотах — повторіть Start/Stop.</p>
                     </div>
                     <details open>
                         <summary><strong>help</strong></summary>

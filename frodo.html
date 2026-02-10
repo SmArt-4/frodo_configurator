@@ -141,6 +141,47 @@
             box-shadow: 0 3px 8px rgba(0,0,0,0.08); margin-bottom: 6px;
         }
         .dropdown-row .btn-blue:last-child { margin-bottom: 0; }
+
+        /* HARMONICS MODAL (intrmd integrated) */
+        .harm-row { display:flex; align-items: center; gap: 10px; margin: 6px 0; }
+        .harm-row label { width: 180px; color: var(--muted-fg); font-weight: 600; }
+        .harm-inputs { display:flex; gap:10px; }
+        .harm-columns { display:flex; gap: 12px; margin-top: 8px; }
+        .harm-col { flex:1; background: var(--muted-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; min-height: 160px; }
+        .harm-col h3 { margin: 0 8px 0 0; font-size: 11px; color: var(--muted-fg); text-transform: uppercase; letter-spacing: 0.5px; }
+        .harm-col-header { display:flex; align-items: flex-end; gap: 8px; margin-bottom: 8px; }
+        .harm-item { background: var(--panel-bg); padding: 8px; margin-bottom: 8px; border-radius: 6px; border: 1px solid var(--border-color); display:flex; justify-content: space-between; align-items:center; position:relative; cursor:pointer; }
+        .harm-item.active { border-color: var(--highlight); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .harm-del {
+            display: none;
+            position: absolute; right: -8px; top: -8px;
+            background: #dc3545; color: #fff; border: none; border-radius: 50%;
+            width: 20px; height: 20px; padding: 0;
+            font-size: 14px; line-height: 20px; text-align: center; cursor: pointer;
+            display: none; align-items: center; justify-content: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+        .harm-item:hover .harm-del { display: flex; }
+        .harm-del:focus { outline: none; box-shadow: 0 0 0 2px rgba(220,53,69,0.35); }
+        .harm-del:hover { filter: brightness(0.95); transform: translateY(-1px); }
+        .harm-results { margin-top: 12px; padding: 10px; border-radius: 8px; background: var(--panel-bg); border: 1px solid var(--border-color); display:none; }
+        .harm-res-row { margin-bottom: 10px; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; }
+        .harm-im { display:inline-block; padding:6px; margin:4px; border-radius:4px; font-size:12px; border-left:4px solid; min-width:200px; vertical-align: top; }
+        .harm-order3 { background: #fff5f5; border-color: #e74c3c; }
+        .harm-order2 { background: #f0f9ff; border-color: #3498db; }
+        .harm-harmonic { background: #fffaf0; border-color: #fd7e14; }
+        .harm-raw { background: #111; color:#0f0; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 12px; min-height: 40px; word-break: break-all; }
+
+        /* Dark theme readability for Harmonics IM mix results */
+        html[data-theme="dark"] .harm-order3 { background: rgba(231, 76, 60, 0.16); border-color: #e74c3c; color: var(--text-color); }
+        html[data-theme="dark"] .harm-order2 { background: rgba(52, 152, 219, 0.16); border-color: #3498db; color: var(--text-color); }
+        html[data-theme="dark"] .harm-harmonic { background: rgba(253, 126, 20, 0.16); border-color: #fd7e14; color: var(--text-color); }
+
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme]) .harm-order3 { background: rgba(231, 76, 60, 0.16); border-color: #e74c3c; color: var(--text-color); }
+            :root:not([data-theme]) .harm-order2 { background: rgba(52, 152, 219, 0.16); border-color: #3498db; color: var(--text-color); }
+            :root:not([data-theme]) .harm-harmonic { background: rgba(253, 126, 20, 0.16); border-color: #fd7e14; color: var(--text-color); }
+        }
         
         /* SETTINGS GRID */
         .settings-block {
@@ -191,6 +232,10 @@
         .range-inputs input { width: 40px; text-align: center; }
         /* Ensure VRX inputs with suffix have enough width */
         .range-inputs .input-with-suffix.compact input { width: 80px; }
+
+        /* Harmonics header input widths */
+        .input-with-suffix.compact input.harm-5ch { width: calc(5ch + 16px); }
+        .input-with-suffix.compact input.harm-3ch { width: calc(3ch + 16px); }
 
         /* VISUALIZER CANVAS */
         .viz-container {
@@ -394,6 +439,7 @@
                 </div>
             </div>
             <button id="randBtn" class="btn-blue" style="margin-left:auto;">Random</button>
+            <button id="harmBtn" class="btn-blue">Harmonics</button>
         </div>
 
         <div class="viz-container" id="vizContainer">
@@ -444,6 +490,7 @@
         const vrxMinInput = document.getElementById('vrxMin');
         const vrxMaxInput = document.getElementById('vrxMax');
         const randBtn = document.getElementById('randBtn');
+        const harmBtn = document.getElementById('harmBtn');
         
         // VTX Rich Inputs
         const vtx1Input = document.getElementById('vtx1Input');
@@ -472,6 +519,11 @@
         // Random Generator Popup Elements (created dynamically)
         let randPopup, randOverlay, randModeAdd, randModeReplace, randExcl, randCount, randTargetV1, randTargetV2, randTargetBoth, randFillBtn, randCloseBtn;
         let helpOverlay, helpPopup, helpCloseBtn;
+        // Harmonics modal elements
+        let harmOverlay, harmPopup;
+        let hRangeStart, hRangeEnd, hCol1, hCol2, hCol3, hCol1Items, hCol2Items, hCol3Items, hResults, hRaw;
+        let hC1Freq, hC1Bw, hC2Freq, hC2Bw, hC3Freq, hC3Bw;
+        let hLists = [[], [], []];
         let roleConfirmOverlay, roleConfirmPopup, roleConfirmText, roleConfirmYes, roleConfirmCancel, roleConfirmDontAsk;
         let suppressRoleChangeConfirm = false;
 
@@ -1160,6 +1212,278 @@
             e.preventDefault();
             openRandPopup();
         });
+
+        // --- 10a. HARMONICS MODAL (from intrmd.html) ---
+        function createHarmModalIfNeeded() {
+            if (harmPopup) return;
+            // Overlay
+            harmOverlay = document.createElement('div');
+            harmOverlay.className = 'overlay';
+            document.body.appendChild(harmOverlay);
+
+            // Popup
+            harmPopup = document.createElement('div');
+            harmPopup.className = 'rand-popup';
+            harmPopup.style.width = 'min(980px, 96vw)';
+            harmPopup.innerHTML = `
+                <div class=\"rand-header\">
+                    <span>Intermodulation and harmonics calculator</span>
+                    <button class=\"btn-blue\" id=\"harmCloseBtn\" style=\"background:#999;\">✕</button>
+                </div>
+                <div class=\"rand-body\">
+                    <div class=\"harm-row\">
+                        <label>Observation Window (MHz)</label>
+                        <div class=\"harm-inputs\">
+                            <div class=\"input-with-suffix compact\">
+                                <input type=\"number\" id=\"harm_range_start\" value=\"900\"> 
+                                <span class=\"suffix\">MHz</span>
+                            </div>
+                            <div class=\"input-with-suffix compact\">
+                                <input type=\"number\" id=\"harm_range_end\" value=\"6000\"> 
+                                <span class=\"suffix\">MHz</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class=\"harm-columns\">
+                        <div class=\"harm-col\" id=\"harm_col1\" style=\"border-top:4px solid var(--vtx1-color);\"><h3>Intermod F1</h3></div>
+                        <div class=\"harm-col\" id=\"harm_col2\" style=\"border-top:4px solid #6610f2;\"><h3>Intermod F2</h3></div>
+                        <div class=\"harm-col\" id=\"harm_col3\" style=\"border-top:4px solid #fd7e14;\"><h3>Harmonics Only</h3></div>
+                    </div>
+                    <div class=\"harm-results\" id=\"harm_results\"></div>
+                    <div class=\"rand-row\" style=\"align-items:flex-start; margin-top:8px;\">
+                        <label style=\"width:auto;\">RAW FILTERED RANGES</label>
+                        <div class=\"harm-raw grow\" id=\"harm_raw\"></div>
+                    </div>
+                </div>
+                <div class=\"rand-footer\">
+                    <button class=\"btn-blue\" id=\"harmCloseBtn2\">Close</button>
+                </div>
+            `;
+            document.body.appendChild(harmPopup);
+
+            // Element refs
+            hRangeStart = harmPopup.querySelector('#harm_range_start');
+            hRangeEnd = harmPopup.querySelector('#harm_range_end');
+            hCol1 = harmPopup.querySelector('#harm_col1');
+            hCol2 = harmPopup.querySelector('#harm_col2');
+            hCol3 = harmPopup.querySelector('#harm_col3');
+            hResults = harmPopup.querySelector('#harm_results');
+            hRaw = harmPopup.querySelector('#harm_raw');
+
+            // Build column headers with inputs and items containers
+            if (hCol1) hCol1.innerHTML = `
+                <div class="harm-col-header">
+                    <h3>VTX1</h3>
+                    <div class="input-with-suffix compact">
+                        <input type="number" id="harm_c1_freq" class="harm-5ch" placeholder="freq">
+                        <span class="suffix">MHz</span>
+                    </div>
+                    <div class="input-with-suffix compact">
+                        <input type="number" id="harm_c1_bw" class="harm-3ch" placeholder="width">
+                        <span class="suffix">MHz</span>
+                    </div>
+                    <button class="btn-green" id="harm_c1_add" title="Add">+</button>
+                </div>
+                <div class="harm-items" id="harm_col1_items"></div>`;
+            if (hCol2) hCol2.innerHTML = `
+                <div class="harm-col-header">
+                    <h3>VTX2</h3>
+                    <div class="input-with-suffix compact">
+                        <input type="number" id="harm_c2_freq" class="harm-5ch" placeholder="freq">
+                        <span class="suffix">MHz</span>
+                    </div>
+                    <div class="input-with-suffix compact">
+                        <input type="number" id="harm_c2_bw" class="harm-3ch" placeholder="width">
+                        <span class="suffix">MHz</span>
+                    </div>
+                    <button class="btn-green" id="harm_c2_add" title="Add">+</button>
+                </div>
+                <div class="harm-items" id="harm_col2_items"></div>`;
+            if (hCol3) hCol3.innerHTML = `
+                <div class="harm-col-header">
+                    <h3>TX to FPV</h3>
+                    <div class="input-with-suffix compact">
+                        <input type="number" id="harm_c3_freq" class="harm-5ch" placeholder="freq">
+                        <span class="suffix">MHz</span>
+                    </div>
+                    <div class="input-with-suffix compact">
+                        <input type="number" id="harm_c3_bw" class="harm-3ch" placeholder="width">
+                        <span class="suffix">MHz</span>
+                    </div>
+                    <button class="btn-green" id="harm_c3_add" title="Add">+</button>
+                </div>
+                <div class="harm-items" id="harm_col3_items"></div>`;
+
+            // Query per-column inputs and items
+            hC1Freq = harmPopup.querySelector('#harm_c1_freq');
+            hC1Bw = harmPopup.querySelector('#harm_c1_bw');
+            hC2Freq = harmPopup.querySelector('#harm_c2_freq');
+            hC2Bw = harmPopup.querySelector('#harm_c2_bw');
+            hC3Freq = harmPopup.querySelector('#harm_c3_freq');
+            hC3Bw = harmPopup.querySelector('#harm_c3_bw');
+            hCol1Items = harmPopup.querySelector('#harm_col1_items');
+            hCol2Items = harmPopup.querySelector('#harm_col2_items');
+            hCol3Items = harmPopup.querySelector('#harm_col3_items');
+
+            // Hooks
+            const harmCloseBtn = harmPopup.querySelector('#harmCloseBtn');
+            const harmCloseBtn2 = harmPopup.querySelector('#harmCloseBtn2');
+            harmCloseBtn.addEventListener('click', closeHarmModal);
+            harmCloseBtn2.addEventListener('click', closeHarmModal);
+            harmOverlay.addEventListener('click', closeHarmModal);
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHarmModal(); });
+
+            const add1 = harmPopup.querySelector('#harm_c1_add');
+            const add2 = harmPopup.querySelector('#harm_c2_add');
+            const add3 = harmPopup.querySelector('#harm_c3_add');
+            if (add1) add1.addEventListener('click', () => { const f = parseFloat(hC1Freq.value); const b = parseFloat(hC1Bw.value); harmAddToCol(1, f, b); });
+            if (add2) add2.addEventListener('click', () => { const f = parseFloat(hC2Freq.value); const b = parseFloat(hC2Bw.value); harmAddToCol(2, f, b); });
+            if (add3) add3.addEventListener('click', () => { const f = parseFloat(hC3Freq.value); const b = parseFloat(hC3Bw.value); harmAddToCol(3, f, b); });
+
+            hRangeStart.addEventListener('input', harmCalculateAll);
+            hRangeEnd.addEventListener('input', harmCalculateAll);
+
+            // Initial render
+            harmRender();
+        }
+
+        function openHarmModal() {
+            createHarmModalIfNeeded();
+            harmOverlay.classList.add('show');
+            harmPopup.classList.add('show');
+        }
+        function closeHarmModal() {
+            if (!harmPopup) return;
+            harmOverlay.classList.remove('show');
+            harmPopup.classList.remove('show');
+        }
+
+        function harmAddToCol(n, f, b) {
+            if (!Number.isFinite(f)) return;
+            // Default widths when left empty: VTX1/VTX2 = 20 MHz, TX to FPV = 30 MHz
+            const bw = Number.isFinite(b) ? b : (n === 3 ? 30 : 20);
+            hLists[n-1].push({ id: Date.now() + Math.random(), freq: f, bw, active: false });
+            // Clear the inputs for that column
+            if (n === 1 && hC1Freq) { hC1Freq.value = ''; }
+            if (n === 2 && hC2Freq) { hC2Freq.value = ''; }
+            if (n === 3 && hC3Freq) { hC3Freq.value = ''; }
+            harmRender();
+        }
+
+        function harmToggle(n, id) {
+            const item = hLists[n-1].find(i => i.id === id);
+            if (item) item.active = !item.active;
+            harmRender();
+        }
+
+        function harmRemove(e, n, id) {
+            e.stopPropagation();
+            hLists[n-1] = hLists[n-1].filter(i => i.id !== id);
+            harmRender();
+        }
+
+        function harmRender() {
+            const colors = [getComputedStyle(document.documentElement).getPropertyValue('--vtx1-color').trim() || '#007bff', '#6610f2', '#fd7e14'];
+            const containers = [hCol1Items, hCol2Items, hCol3Items];
+            [1,2,3].forEach(num => {
+                const itemsDiv = containers[num-1];
+                if (!itemsDiv) return;
+                itemsDiv.innerHTML = '';
+                hLists[num-1].forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = `harm-item ${item.active ? 'active' : ''}`;
+                    div.style.color = item.active ? colors[num-1] : 'var(--muted-fg)';
+                    div.onclick = () => harmToggle(num, item.id);
+                    div.innerHTML = `<span><b>${item.freq}</b> <small>${item.bw || 0}MHz BW</small></span><button class=\"harm-del\" aria-label=\"Remove\" title=\"Remove\" onclick=\"event.stopPropagation(); window.__harmRemove(${num}, ${item.id})\">&times;</button>`;
+                    itemsDiv.appendChild(div);
+                });
+            });
+            // Expose remove handler for inline onclick
+            window.__harmRemove = (n, id) => { hLists[n-1] = hLists[n-1].filter(i => i.id !== id); harmRender(); };
+            harmCalculateAll();
+        }
+
+        function harmIntersects(s1,e1,s2,e2) { return Math.max(s1,s2) <= Math.min(e1,e2); }
+
+        function mergeRanges(pairs) {
+            if (!pairs || pairs.length === 0) return [];
+            const arr = pairs
+                .map(p => ({ s: Math.min(p[0], p[1]), e: Math.max(p[0], p[1]) }))
+                .sort((a, b) => (a.s - b.s) || (a.e - b.e));
+            const out = [arr[0]];
+            for (let i = 1; i < arr.length; i++) {
+                const last = out[out.length - 1];
+                const cur = arr[i];
+                // Merge intersecting ranges (overlap)
+                if (cur.s <= last.e) {
+                    last.e = Math.max(last.e, cur.e);
+                } else {
+                    out.push({ s: cur.s, e: cur.e });
+                }
+            }
+            return out;
+        }
+
+        function harmCalculateAll() {
+            const active1 = hLists[0].filter(i => i.active);
+            const active2 = hLists[1].filter(i => i.active);
+            const active3 = hLists[2].filter(i => i.active);
+            const winS = parseFloat(hRangeStart.value);
+            const winE = parseFloat(hRangeEnd.value);
+
+            if (active1.length === 0 && active2.length === 0 && active3.length === 0) {
+                hResults.style.display = 'none';
+                hRaw.textContent = '';
+                return;
+            }
+
+            let html = `<strong>Detected Products in Window (${winS}-${winE} MHz):</strong><br><br>`;
+            let rawRanges = [];
+            let found = false;
+
+            // Intermod
+            active1.forEach(o1 => {
+                active2.forEach(o2 => {
+                    const f1 = o1.freq, f2 = o2.freq; const bw1 = o1.bw||0, bw2 = o2.bw||0;
+                    const products = [
+                        { name: '3rd Order (2f1-f2)', c: Math.abs(2*f1-f2), w: (2*bw1)+bw2, cls: 'harm-order3' },
+                        { name: '3rd Order (2f2-f1)', c: Math.abs(2*f2-f1), w: (2*bw2)+bw1, cls: 'harm-order3' },
+                        { name: '2nd Order (f1+f2)', c: f1+f2, w: bw1+bw2, cls: 'harm-order2' },
+                        { name: '2nd Order (f1-f2)', c: Math.abs(f1-f2), w: bw1+bw2, cls: 'harm-order2' }
+                    ];
+                    let mixHtml = '';
+                    products.forEach(p => {
+                        const start = p.c - p.w/2; const end = p.c + p.w/2;
+                        if (harmIntersects(start,end,winS,winE)) {
+                            mixHtml += `<div class=\"harm-im ${p.cls}\"><b>${p.name}</b><br><span class=\"range-text\">${start.toFixed(1)}-${end.toFixed(1)}</span></div>`;
+                            rawRanges.push([Math.round(start), Math.round(end)]);
+                        }
+                    });
+                    if (mixHtml) { found = true; html += `<div class=\"harm-res-row\"><strong>IM Mix: ${f1} & ${f2}</strong><br>${mixHtml}</div>`; }
+                });
+            });
+
+            // Harmonics
+            active3.forEach(o3 => {
+                let harmHtml = '';
+                for (let h = 2; h <= 10; h++) {
+                    const center = o3.freq * h; const width = (o3.bw||0) * h;
+                    const start = center - width/2; const end = center + width/2;
+                    if (harmIntersects(start,end,winS,winE)) {
+                        harmHtml += `<div class=\"harm-im harm-harmonic\"><b>${h}th Harmonic</b><br><span class=\"range-text\">${start.toFixed(1)}-${end.toFixed(1)}</span></div>`;
+                        rawRanges.push([Math.round(start), Math.round(end)]);
+                    }
+                }
+                if (harmHtml) { found = true; html += `<div class=\"harm-res-row\"><strong>Harmonics: ${o3.freq}</strong><br>${harmHtml}</div>`; }
+            });
+
+            hResults.innerHTML = found ? html : '<em>No active products fall within the observation window.</em>';
+            hResults.style.display = 'block';
+            const merged = mergeRanges(rawRanges);
+            hRaw.textContent = merged.map(r => `${r.s}-${r.e}`).join(' ');
+        }
+
+        harmBtn.addEventListener('click', (e) => { e.preventDefault(); openHarmModal(); });
 
         // --- 10. HELP MODAL ---
         function createHelpModalIfNeeded() {

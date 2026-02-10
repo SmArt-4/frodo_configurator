@@ -1227,7 +1227,7 @@
             harmPopup.style.width = 'min(980px, 96vw)';
             harmPopup.innerHTML = `
                 <div class=\"rand-header\">
-                    <span>Intermodulation and harmonics calculator</span>
+                    <span>FPV Spectral Manager (MHz)</span>
                     <button class=\"btn-blue\" id=\"harmCloseBtn\" style=\"background:#999;\">✕</button>
                 </div>
                 <div class=\"rand-body\">
@@ -1463,7 +1463,7 @@
                 });
             });
 
-            // Harmonics
+            // Harmonics from TX to FPV column
             active3.forEach(o3 => {
                 let harmHtml = '';
                 for (let h = 2; h <= 10; h++) {
@@ -1476,6 +1476,24 @@
                 }
                 if (harmHtml) { found = true; html += `<div class=\"harm-res-row\"><strong>Harmonics: ${o3.freq}</strong><br>${harmHtml}</div>`; }
             });
+
+            // Additionally, compute harmonics for VTX1/VTX2 entries below 4000 MHz
+            const processHarmonicsFor = (arr, label) => {
+                arr.filter(o => (o.freq || 0) < 4000).forEach(o => {
+                    let harmHtml = '';
+                    for (let h = 2; h <= 10; h++) {
+                        const center = o.freq * h; const width = (o.bw||0) * h;
+                        const start = center - width/2; const end = center + width/2;
+                        if (harmIntersects(start,end,winS,winE)) {
+                            harmHtml += `<div class=\"harm-im harm-harmonic\"><b>${h}th Harmonic</b><br><span class=\"range-text\">${start.toFixed(1)}-${end.toFixed(1)}</span></div>`;
+                            rawRanges.push([Math.round(start), Math.round(end)]);
+                        }
+                    }
+                    if (harmHtml) { found = true; html += `<div class=\"harm-res-row\"><strong>Harmonics (${label}): ${o.freq}</strong><br>${harmHtml}</div>`; }
+                });
+            };
+            processHarmonicsFor(active1, 'VTX1');
+            processHarmonicsFor(active2, 'VTX2');
 
             hResults.innerHTML = found ? html : '<em>No active products fall within the observation window.</em>';
             hResults.style.display = 'block';

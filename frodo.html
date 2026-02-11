@@ -151,7 +151,15 @@
         .harm-col h3 { margin: 0 8px 0 0; font-size: 11px; color: var(--muted-fg); text-transform: uppercase; letter-spacing: 0.5px; }
         .harm-col-header { display:flex; align-items: flex-end; gap: 8px; margin-bottom: 8px; }
         .harm-item { background: var(--panel-bg); padding: 8px; margin-bottom: 8px; border-radius: 6px; border: 1px solid var(--border-color); display:flex; justify-content: space-between; align-items:center; position:relative; cursor:pointer; }
-        .harm-item.active { border-color: var(--highlight); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .harm-item.active { border-color: currentColor; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .harm-item.active::before {
+            content: '✓';
+            position: absolute; left: -8px; top: -8px;
+            width: 18px; height: 18px; border-radius: 50%;
+            background: #28a745; color: #fff; font-weight: 900; font-size: 12px;
+            display: inline-flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+        }
         .harm-del {
             display: none;
             position: absolute; right: -8px; top: -8px;
@@ -1340,6 +1348,23 @@
             if (add2) add2.addEventListener('click', () => { const f = parseFloat(hC2Freq.value); const b = parseFloat(hC2Bw.value); harmAddToCol(2, f, b); });
             if (add3) add3.addEventListener('click', () => { const f = parseFloat(hC3Freq.value); const b = parseFloat(hC3Bw.value); harmAddToCol(3, f, b); });
 
+            // Enter should behave like "+" for each column
+            const addEnterHandler = (freqInput, bwInput, n) => {
+                const handler = (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const f = parseFloat(freqInput ? freqInput.value : '');
+                        const b = parseFloat(bwInput ? bwInput.value : '');
+                        harmAddToCol(n, f, b);
+                    }
+                };
+                if (freqInput) freqInput.addEventListener('keydown', handler);
+                if (bwInput) bwInput.addEventListener('keydown', handler);
+            };
+            addEnterHandler(hC1Freq, hC1Bw, 1);
+            addEnterHandler(hC2Freq, hC2Bw, 2);
+            addEnterHandler(hC3Freq, hC3Bw, 3);
+
             hRangeStart.addEventListener('input', harmCalculateAll);
             hRangeEnd.addEventListener('input', harmCalculateAll);
 
@@ -1362,7 +1387,8 @@
             if (!Number.isFinite(f)) return;
             // Default widths when left empty: VTX1/VTX2 = 20 MHz, TX to FPV = 30 MHz
             const bw = Number.isFinite(b) ? b : (n === 3 ? 30 : 20);
-            hLists[n-1].push({ id: Date.now() + Math.random(), freq: f, bw, active: false });
+            const isFirstInCol = hLists[n-1].length === 0;
+            hLists[n-1].push({ id: Date.now() + Math.random(), freq: f, bw, active: isFirstInCol });
             // Clear the inputs for that column
             if (n === 1 && hC1Freq) { hC1Freq.value = ''; }
             if (n === 2 && hC2Freq) { hC2Freq.value = ''; }

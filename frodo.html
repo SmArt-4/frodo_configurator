@@ -360,6 +360,56 @@
             height: 100px; overflow-y: scroll; border: 1px solid var(--border-color); background: var(--panel-bg); padding: 10px;
         }
 
+        /* Switchery Toggle (Betaflight-style) */
+        .auto-connect-switch { display: flex; align-items: center; gap: 8px; }
+        .auto-connect-switch .auto_connect { font-weight: 600; font-size: 13px; white-space: nowrap; }
+        input[type='checkbox'][data-switchery='true'] { display: none !important; }
+        .switchery {
+            display: inline-block; position: relative;
+            width: 50px; height: 24px; border-radius: 12px; border: 2px solid;
+            background-color: #e0e0e0; border-color: #c0c0c0;
+            cursor: pointer; transition: all 0.4s ease;
+            box-shadow: inset 0 0 0 0px rgba(0,0,0,0.1);
+        }
+        .switchery-small { width: 44px; height: 20px; border-radius: 10px; }
+        .switchery small {
+            position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+            border-radius: 50%; background-color: #ffffff;
+            transition: left 0.2s ease, background-color 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .switchery-small small { width: 14px; height: 14px; top: 2px; left: 2px; }
+        input[type='checkbox'][data-switchery='true']:checked + .switchery {
+            background-color: var(--highlight); border-color: var(--highlight);
+            box-shadow: inset 0 0 0 5px var(--highlight);
+        }
+        input[type='checkbox'][data-switchery='true']:checked + .switchery small {
+            left: 26px; background-color: #ffffff;
+        }
+        .switchery-small input[type='checkbox'][data-switchery='true']:checked + .switchery small {
+            left: 22px;
+        }
+        
+        /* Dark mode switchery styling */
+        html[data-theme="dark"] .switchery {
+            background-color: #555555; border-color: #444444;
+        }
+        html[data-theme="dark"] .switchery small {
+            background-color: #e0e0e0;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme]) .switchery {
+                background-color: #555555; border-color: #444444;
+            }
+            :root:not([data-theme]) .switchery small {
+                background-color: #e0e0e0;
+            }
+        }
+        
+        /* Make switch components clickable */
+        .auto-connect-switch { cursor: pointer; }
+        .auto-connect-switch .auto_connect { cursor: pointer; }
+        
         /* Theme toggle */
         .theme-toggle {
             position: fixed; top: 10px; right: 10px; z-index: 500;
@@ -386,6 +436,11 @@
         </div>
 
         <div class="header-group header-right">
+            <div id="auto-connect-switch" class="auto-connect-switch" title="Auto-Connect: Enabled - App automatically tries to connect when new port is detected">
+                <input id="auto-connect" class="auto_connect" type="checkbox" data-switchery="true">
+                <span class="switchery switchery-small"><small></small></span>
+                <span class="auto_connect">Auto-Connect</span>
+            </div>
             <button id="connectBtn">Connect</button>
             <div class="split" id="writeSplit">
                 <button id="writeBtn" class="btn-green btn-main">Write</button>
@@ -523,6 +578,7 @@
         const popupVtx1 = document.getElementById('popupVtx1');
         const popupVtx2 = document.getElementById('popupVtx2');
         const helpBtn = document.getElementById('helpBtn');
+        const autoConnectChk = document.getElementById('auto-connect');
 
         // Random Generator Popup Elements (created dynamically)
         let randPopup, randOverlay, randModeAdd, randModeReplace, randExcl, randCount, randTargetV1, randTargetV2, randTargetBoth, randFillBtn, randCloseBtn;
@@ -538,6 +594,9 @@
         // Logic Variables
         let port, writerStream, reader;
         let isConnected = false;
+        let lastVID = null, lastPID = null;
+        let autoConnectBusy = false;
+        let autoConnectEnabled = false;
         let vtx1Freqs = [];
         let vtx2Freqs = [];
         let isPopupOpen = false;
@@ -605,26 +664,119 @@
         }
 
         // --- 2. CONNECT ---
+        // Target device USB IDs
+        const TARGET_VID = 0x0483; // STMicroelectronics
+        const TARGET_PID = 0x5740; // STM32 VCP
+
+        function getPortInfo(p) {
+            try { const i = p?.getInfo?.(); return { vid: i?.usbVendorId ?? null, pid: i?.usbProductId ?? null }; } catch { return { vid: null, pid: null }; }
+        }
+        function isTargetPort(p) {
+            const { vid, pid } = getPortInfo(p);
+            return (vid === TARGET_VID && pid === TARGET_PID);
+        }
+        function infoMatches(a, b) {
+            return a && b && a.vid != null && a.pid != null && a.vid === b.vid && a.pid === b.pid;
+        }
+
+        function setAutoConnectUIFromStorage() {
+            const v = localStorage.getItem('frodo_autoconnect');
+            autoConnectEnabled = v === '1';
+            if (autoConnectChk) autoConnectChk.checked = autoConnectEnabled;
+        }
+        setAutoConnectUIFromStorage();
+        if (autoConnectChk) {
+            // Listen to checkbox change event
+            autoConnectChk.addEventListener('change', async () => {
+                autoConnectEnabled = !!autoConnectChk.checked;
+                localStorage.setItem('frodo_autoconnect', autoConnectEnabled ? '1' : '0');
+                log(`Auto-connect ${autoConnectEnabled ? 'enabled' : 'disabled'}`);
+                if (autoConnectEnabled && !isConnected) {
+                    // Attempt immediate connect if a matching authorized port exists
+                    try {
+                        const ports = await navigator.serial?.getPorts?.() || [];
+                        const preferred = ports.find(isTargetPort) || (ports.length === 1 ? ports[0] : null);
+                        if (preferred) attemptAutoOpen(preferred, 'toggle');
+                    } catch (e) { /* ignore */ }
+                }
+            });
+            
+            // Add click handlers to switchery visual element and label text
+            const switchContainer = document.getElementById('auto-connect-switch');
+            if (switchContainer) {
+                switchContainer.addEventListener('click', (e) => {
+                    if (e.target === autoConnectChk) return; // Let native checkbox handle it
+                    e.preventDefault();
+                    e.stopPropagation();
+                    autoConnectChk.checked = !autoConnectChk.checked;
+                    autoConnectChk.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+            }
+        }
+
+        async function openSelectedPort(p, sourceLabel = 'manual') {
+            if (!p) throw new Error('No port provided');
+            port = p;
+            try {
+                if (!port.readable || !port.writable) {
+                    await port.open({ baudRate: 9600 });
+                }
+            } catch (e) {
+                throw e;
+            }
+            try { await port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch(_) {}
+            writerStream = port.writable.getWriter();
+
+            const info = getPortInfo(port);
+            lastVID = info.vid ?? null; lastPID = info.pid ?? null;
+
+            connectBtn.textContent = "Connected";
+            connectBtn.classList.add("connected");
+            connectBtn.disabled = true;
+            isConnected = true;
+
+            log(`Opened serial (${sourceLabel}) VID=${info.vid?.toString(16) || '??'} PID=${info.pid?.toString(16) || '??'}`);
+
+            readLoop();
+            runStartupSequence();
+        }
+
+        async function attemptAutoOpen(p, why = 'auto') {
+            if (!navigator.serial) return;
+            if (isConnected || autoConnectBusy) return;
+            autoConnectBusy = true;
+            const info = getPortInfo(p);
+            log(`Auto-connect: trying ${why}; VID=${info.vid?.toString(16) || '??'} PID=${info.pid?.toString(16) || '??'}`);
+
+            let attempt = 0;
+            let lastErr = null;
+            while (attempt < 5 && !isConnected) {
+                const backoff = Math.min(150 * Math.pow(2, attempt), 2000);
+                try {
+                    await openSelectedPort(p, `auto#${attempt+1}`);
+                    lastErr = null;
+                    break;
+                } catch (e) {
+                    lastErr = e;
+                    log(`Auto-connect attempt ${attempt+1} failed: ${e?.message || e}`);
+                    await new Promise(r => setTimeout(r, backoff));
+                }
+                attempt++;
+            }
+            if (!isConnected && lastErr) log(`Auto-connect aborted after ${attempt} attempts.`);
+            autoConnectBusy = false;
+        }
         connectBtn.addEventListener('click', async () => {
             if (!navigator.serial) return alert("Web Serial API not supported.");
             try {
                 port = await navigator.serial.requestPort({ 
                     filters: [
+                        { usbVendorId: 0x0483, usbProductId: 0x5740 }, // STM32 VCP
                         { usbVendorId: 0x0483 }, { usbVendorId: 0x10C4 }, 
                         { usbVendorId: 0x0403 }, { usbVendorId: 0x1A86 }, { usbVendorId: 0x2341 }
                     ] 
                 });
-                await port.open({ baudRate: 9600 });
-                await port.setSignals({ dataTerminalReady: true, requestToSend: true });
-                writerStream = port.writable.getWriter();
-                
-                connectBtn.textContent = "Connected";
-                connectBtn.classList.add("connected");
-                connectBtn.disabled = true;
-                isConnected = true;
-
-                readLoop();
-                runStartupSequence();
+                await openSelectedPort(port, 'manual');
             } catch (err) {
                 log(`Error: ${err.message}`);
             }
@@ -650,19 +802,74 @@
         }
 
         if (navigator.serial) {
+            // On device disconnect, match by VID/PID (not object identity) when possible
             navigator.serial.addEventListener('disconnect', async (event) => {
-                // If the disconnected port is the one we used, clean up
-                if (!port || (event.port && port !== event.port)) {
-                    log('A serial device disconnected');
-                    return;
+                const info = getPortInfo(event?.port);
+                const matchesOurDevice = info && lastVID != null && lastPID != null && info.vid === lastVID && info.pid === lastPID;
+                if (!isConnected) { log('A serial device disconnected'); return; }
+                if (matchesOurDevice || (event.port && port === event.port)) {
+                    await cleanupPort();
+                    setDisconnectedUI('Device disconnected');
+                    // If auto-connect is ON, we'll wait for a subsequent connect event on replug
+                } else {
+                    log('A serial device disconnected (not our target)');
                 }
-                await cleanupPort();
-                setDisconnectedUI('Device disconnected');
             });
-            navigator.serial.addEventListener('connect', () => {
+
+            // On device connect, try auto-open when enabled
+            navigator.serial.addEventListener('connect', async (event) => {
+                const p = event?.port;
                 log('Serial device connected');
+                if (!autoConnectEnabled || isConnected) return;
+                if (p) {
+                    const info = getPortInfo(p);
+                    if (info && info.vid != null && info.pid != null) {
+                        if (info.vid === TARGET_VID && info.pid === TARGET_PID) {
+                            attemptAutoOpen(p, 'event-match');
+                        } else {
+                            // Not our target; try known authorized target first
+                            try {
+                                const ports = await navigator.serial.getPorts();
+                                const preferred = ports.find(isTargetPort);
+                                if (preferred) attemptAutoOpen(preferred, 'event-preferred');
+                            } catch(_){}
+                        }
+                    } else {
+                        // Missing VID/PID info: prefer known target from authorized list; else best-effort open the new port
+                        try {
+                            const ports = await navigator.serial.getPorts();
+                            const preferred = ports.find(isTargetPort);
+                            if (preferred) attemptAutoOpen(preferred, 'event-enum');
+                            else attemptAutoOpen(p, 'event-fallback');
+                        } catch(_) { attemptAutoOpen(p, 'event-fallback'); }
+                    }
+                } else {
+                    // No event.port provided — enumerate authorized ports and resolve ambiguity rules
+                    try {
+                        const ports = await navigator.serial.getPorts();
+                        const preferred = ports.find(isTargetPort) || (ports.length === 1 ? ports[0] : null);
+                        if (preferred) attemptAutoOpen(preferred, 'event-enum');
+                        else if (ports.length > 1) log('Auto-connect skipped: multiple authorized devices');
+                    } catch(_){}
+                }
             });
         }
+
+        // On page load, if auto-connect enabled, try to open an authorized matching port
+        (async () => {
+            try {
+                if (!navigator.serial) return;
+                if (!autoConnectEnabled) return;
+                const ports = await navigator.serial.getPorts();
+                if (!ports || ports.length === 0) { log('No authorized serial ports on load'); return; }
+                let preferred = ports.find(isTargetPort);
+                if (!preferred) {
+                    if (ports.length === 1) preferred = ports[0];
+                    else log('Auto-connect on load: multiple authorized ports, skipping');
+                }
+                if (preferred && !isConnected) attemptAutoOpen(preferred, 'load');
+            } catch (e) { /* ignore */ }
+        })();
 
         // --- 3. WRITE ---
         writeBtn.addEventListener('click', async () => {

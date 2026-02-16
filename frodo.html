@@ -177,17 +177,20 @@
         .harm-im { display:inline-block; padding:6px; margin:4px; border-radius:4px; font-size:12px; border-left:4px solid; min-width:200px; vertical-align: top; }
         .harm-order3 { background: #fff5f5; border-color: #e74c3c; }
         .harm-order2 { background: #f0f9ff; border-color: #3498db; }
+        .harm-order4 { background: #f7f5ff; border-color: #6f42c1; }
         .harm-harmonic { background: #fffaf0; border-color: #fd7e14; }
         .harm-raw { background: #111; color:#0f0; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 12px; min-height: 40px; word-break: break-all; }
 
         /* Dark theme readability for Harmonics IM mix results */
         html[data-theme="dark"] .harm-order3 { background: rgba(231, 76, 60, 0.16); border-color: #e74c3c; color: var(--text-color); }
         html[data-theme="dark"] .harm-order2 { background: rgba(52, 152, 219, 0.16); border-color: #3498db; color: var(--text-color); }
+        html[data-theme="dark"] .harm-order4 { background: rgba(111, 66, 193, 0.16); border-color: #6f42c1; color: var(--text-color); }
         html[data-theme="dark"] .harm-harmonic { background: rgba(253, 126, 20, 0.16); border-color: #fd7e14; color: var(--text-color); }
 
         @media (prefers-color-scheme: dark) {
             :root:not([data-theme]) .harm-order3 { background: rgba(231, 76, 60, 0.16); border-color: #e74c3c; color: var(--text-color); }
             :root:not([data-theme]) .harm-order2 { background: rgba(52, 152, 219, 0.16); border-color: #3498db; color: var(--text-color); }
+            :root:not([data-theme]) .harm-order4 { background: rgba(111, 66, 193, 0.16); border-color: #6f42c1; color: var(--text-color); }
             :root:not([data-theme]) .harm-harmonic { background: rgba(253, 126, 20, 0.16); border-color: #fd7e14; color: var(--text-color); }
         }
         
@@ -317,6 +320,61 @@
         .help-intro ul { margin: 6px 0 0 18px; padding: 0; }
         .help-intro li { margin: 4px 0; }
         .help-intro .note { font-size: 12px; color: var(--muted-fg); margin-top: 6px; }
+
+        /* HELP TOOLTIP */
+        .help-tip {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 16px; height: 16px; margin-left: 6px; cursor: help;
+            border-radius: 50%; border: 1px solid var(--border-color);
+            background: var(--muted-bg); color: var(--muted-fg);
+            font-weight: 800; font-size: 11px; line-height: 1; user-select: none;
+            position: relative; vertical-align: middle; outline: none;
+        }
+        .help-tip:focus-visible { box-shadow: 0 0 0 3px rgba(47,129,247,0.35); }
+        .help-tip::after {
+            content: attr(data-help);
+            position: absolute; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%);
+            background: var(--panel-bg); color: var(--text-color);
+            border: 1px solid var(--border-color); border-radius: 6px;
+            padding: 8px 10px; min-width: 200px; max-width: 320px; white-space: pre-line;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            opacity: 0; visibility: hidden; transition: opacity 120ms ease;
+            z-index: 1000; pointer-events: none; text-align: left; font-size: 12px;
+        }
+        .help-tip::before {
+            content: '';
+            position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%);
+            border-width: 6px; border-style: solid; border-color: var(--panel-bg) transparent transparent transparent;
+            opacity: 0; visibility: hidden; transition: opacity 120ms ease; z-index: 1000;
+        }
+        .help-tip:hover::after, .help-tip:hover::before,
+        .help-tip:focus::after, .help-tip:focus::before { opacity: 1; visibility: visible; }
+
+        /* Positional variants */
+        /* Bottom */
+        .help-tip[data-pos="bottom"]::after {
+            top: calc(100% + 10px); bottom: auto; left: 50%; transform: translateX(-50%);
+        }
+        .help-tip[data-pos="bottom"]::before {
+            top: calc(100% + 6px); bottom: auto; left: 50%; transform: translateX(-50%);
+            border-color: transparent transparent var(--panel-bg) transparent;
+        }
+        /* Right */
+        .help-tip[data-pos="right"]::after {
+            left: calc(100% + 10px); bottom: auto; top: 50%; transform: translateY(-50%);
+        }
+        .help-tip[data-pos="right"]::before {
+            left: calc(100% + 4px); bottom: auto; top: 50%; transform: translateY(-50%);
+            border-color: transparent var(--panel-bg) transparent transparent;
+        }
+        /* Left */
+        .help-tip[data-pos="left"]::after {
+            right: calc(100% + 10px); left: auto; bottom: auto; top: 50%; transform: translateY(-50%);
+        }
+        .help-tip[data-pos="left"]::before {
+            right: calc(100% + 4px); left: auto; bottom: auto; top: 50%; transform: translateY(-50%);
+            border-color: transparent transparent transparent var(--panel-bg);
+        }
 
         /* Match VRX range cell look for randCount */
         #randCount { width: 80px; text-align: center; }
@@ -454,7 +512,7 @@
     </div>
 
     <div class="settings-block">
-        <h3>Frodo settings</h3>
+        <h3>Frodo settings <span class="help-tip" tabindex="0" aria-label="Help: Frodo settings" data-help="sync_AUX - канал, ЗМІНА якого синхронізує дрон і VRX.&#10;Start/Stop AUX - при значенні 2000 перемикання зупиняється.&#10;Switch_latency - min=100, recommended~150ms&#10;Time on freq - Тривалість роботи на одній з частот.">?</span></h3>
         <div class="settings-grid">
             <div class="col-aux">
                 <div class="form-row">
@@ -486,7 +544,7 @@
     </div>
 
     <div class="freq-block">
-        <h3>Freq settings</h3>
+        <h3>Freq settings <span class="help-tip" tabindex="0" aria-label="Help: Freq settings" data-help="VRX range - частоти, на яких перемикається система;&#10;Random - згенерувати випадкові канали&#10;Harmonics - теоретичний розрахунок інтермодуляцій і гармонік від робочих частот системи.&#10;В лінійці можна вручну додавати/видаляти.">?</span></h3>
         
         <div class="form-row" style="max-width: 600px; gap: 10px;">
             <label>VRX range:</label>
@@ -1442,12 +1500,16 @@
             harmPopup.style.width = 'min(980px, 96vw)';
             harmPopup.innerHTML = `
                 <div class=\"rand-header\">
-                    <span>FPV Spectral Manager (MHz)</span>
+                    <div style=\"display:flex; align-items:center; gap:8px;\">
+                        <span>Calculator</span>
+                        <span class=\"help-tip\" tabindex=\"0\" aria-label=\"Help: Calculator\" data-help=\"Перші два стовпці - VTX які на носії (ретрансляція і носій). Без введення bandwith додаються 20MHz&#10;Третій - стовпець суто для частот керуванння. Без введеної bandwith додається як 30MHz&#10;&#10;Для перших стовпців рахуються інтермодуляції і гармоніки, для керування тільки гармоніки&#10;&#10;Перша додана частота в стовпець додається активною, інші треба активувати.\">?</span>
+                    </div>
                     <button class=\"btn-blue\" id=\"harmCloseBtn\" style=\"background:#999;\">✕</button>
                 </div>
                 <div class=\"rand-body\">
                     <div class=\"harm-row\">
                         <label>Observation Window (MHz)</label>
+                        <span class=\"help-tip\" tabindex=\"0\" aria-label=\"Help: Observation Window\" data-help=\"Define the frequency span to analyze. Enter start and end in MHz; results only include products within this window.\">?</span>
                         <div class=\"harm-inputs\">
                             <div class=\"input-with-suffix compact\">
                                 <input type=\"number\" id=\"harm_range_start\" value=\"900\"> 
@@ -1682,7 +1744,14 @@
                         { name: '3rd Order (2f1-f2)', c: Math.abs(2*f1-f2), w: (2*bw1)+bw2, cls: 'harm-order3' },
                         { name: '3rd Order (2f2-f1)', c: Math.abs(2*f2-f1), w: (2*bw2)+bw1, cls: 'harm-order3' },
                         { name: '2nd Order (f1+f2)', c: f1+f2, w: bw1+bw2, cls: 'harm-order2' },
-                        { name: '2nd Order (f1-f2)', c: Math.abs(f1-f2), w: bw1+bw2, cls: 'harm-order2' }
+                        { name: '2nd Order (f1-f2)', c: Math.abs(f1-f2), w: bw1+bw2, cls: 'harm-order2' },
+                        // 4th Order terms
+                        { name: '4th Order (3f1-f2)', c: Math.abs(3*f1 - f2), w: (3*bw1) + bw2, cls: 'harm-order4' },
+                        { name: '4th Order (3f2-f1)', c: Math.abs(3*f2 - f1), w: (3*bw2) + bw1, cls: 'harm-order4' },
+                        { name: '4th Order (3f1+f2)', c: 3*f1 + f2, w: (3*bw1) + bw2, cls: 'harm-order4' },
+                        { name: '4th Order (3f2+f1)', c: 3*f2 + f1, w: (3*bw2) + bw1, cls: 'harm-order4' },
+                        { name: '4th Order (2f1+2f2)', c: 2*f1 + 2*f2, w: (2*bw1) + (2*bw2), cls: 'harm-order4' },
+                        { name: '4th Order (2f1-2f2)', c: Math.abs(2*f1 - 2*f2), w: (2*bw1) + (2*bw2), cls: 'harm-order4' }
                     ];
                     let mixHtml = '';
                     products.forEach(p => {
@@ -2062,6 +2131,48 @@
         // Initialize CLI with current defaults
         updateCliTextarea();
 
+    </script>
+    <script>
+    // Dynamic help-tip positioning: choose left/right/bottom/top based on viewport space
+    (function(){
+        function decidePos(el){
+            const rect = el.getBoundingClientRect();
+            const vw = window.innerWidth || document.documentElement.clientWidth;
+            const vh = window.innerHeight || document.documentElement.clientHeight;
+            const gap = 12, minW = 220, minH = 80;
+
+            const spaceLeft = rect.left - gap;
+            const spaceRight = vw - rect.right - gap;
+            const spaceTop = rect.top - gap;
+            const spaceBottom = vh - rect.bottom - gap;
+
+            let pos = 'top';
+            if (Math.max(spaceLeft, spaceRight) >= minW) {
+                pos = (spaceRight >= spaceLeft) ? 'right' : 'left';
+            } else if (spaceBottom >= minH) {
+                pos = 'bottom';
+            } else {
+                pos = 'top';
+            }
+            el.setAttribute('data-pos', pos);
+        }
+
+        function onOpen(e){
+            const el = e.target && e.target.classList && e.target.classList.contains('help-tip')
+                ? e.target : e.target.closest && e.target.closest('.help-tip');
+            if (!el) return;
+            decidePos(el);
+        }
+
+        document.addEventListener('mouseenter', onOpen, true);
+        document.addEventListener('focusin', onOpen, true);
+        window.addEventListener('resize', () => {
+            document.querySelectorAll('.help-tip[data-pos]').forEach(el => el.removeAttribute('data-pos'));
+        });
+        window.addEventListener('scroll', () => {
+            document.querySelectorAll('.help-tip[data-pos]').forEach(el => el.removeAttribute('data-pos'));
+        }, true);
+    })();
     </script>
 </body>
 </html>
